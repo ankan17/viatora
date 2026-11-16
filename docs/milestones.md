@@ -47,7 +47,8 @@ Decisions made along the way:
 - [x] Change cards: every reply that edits lists what it changed, with one Undo for all of it
 - [x] Trip profile (travellers, pace, interests, dietary, accessibility, preferences) saved from chat and sent with every turn
 - [x] Messages stored per trip; the conversation is there after a reload
-- [x] Tests: unit 36, database 38, end-to-end 24 (phone and desktop), 94 screenshots. Chat tests run against a scripted stand-in for the model
+- [x] Replies and change cards can only be written by the server; a person can send 150 messages a day
+- [x] Tests: unit 46, database 40, end-to-end 27 (phone and desktop), 94 screenshots. Chat tests run against a scripted stand-in for the model, which also rejects malformed requests
 - [ ] A real conversation with the model (needs `ANTHROPIC_API_KEY`): the prompt, the tool descriptions and effort level are untuned until then
 
 Decisions made along the way:
@@ -56,9 +57,16 @@ Decisions made along the way:
 - Edits apply at once, without asking first. The card and its Undo are the way back.
 - Replies are plain text. Rendering Markdown can wait until replies need it.
 - One model call runs at a time and tools run in order, because positions and day numbers depend on the edits before.
-- Stopping a reply keeps what had arrived, and any edits already made keep their card.
+- Stopping a reply keeps what had arrived. Edits already made keep their card; edits the model had asked for but not yet made are dropped.
+- A turn that can't finish says so in the reply: the step limit (12 model calls), a reply cut off for length, or nothing to say.
+- Replies are stored with the Supabase secret key, the only use of it in the app. Before this, any editor could have inserted a fake reply or change card straight into the table.
 - If the model declines a request for policy reasons, the API retries on its default fallback model (server-side fallback, a beta feature).
-- No daily message cap yet; only people who can edit a trip can chat on it. The cap belongs with launch prep.
+- Only people who can edit a trip can chat on it. The daily cap is a cost guard, not a plan limit; plans belong with launch prep.
+
+Known gaps, found in review and left for later:
+- Undoing a reply is refused ("Something else changed since") when a later change touched the same row. The trip profile lives on the trip's row, so two replies that each save a preference must be undone newest first.
+- One turn per trip at a time is enforced only by the chat box. Two tabs can run two turns at once.
+- On serverless hosting, check that Stop cancels the function, and that a turn cut off by the time limit still leaves a card for the edits it made.
 ## 4. Lookups
 ## 5. Lists
 ## 6. Launch prep

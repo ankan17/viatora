@@ -7,14 +7,12 @@ import { useTrip } from "@/components/itinerary/trip-context";
 import { buttonClass } from "@/components/ui/button";
 import { ArrowUp, Stop } from "@/components/ui/icons";
 import type { TurnEvent } from "@/lib/agent/events";
-import type { ChatEdit, ChatMessage } from "@/lib/agent/messages";
+import { appendMessage, mergeMessages, type ChatEdit, type ChatMessage } from "@/lib/agent/messages";
 import { MAX_MESSAGE_LENGTH } from "@/lib/agent/model";
 import { cn } from "@/lib/cn";
 
 /** The turn in flight: what the traveller sent and the reply as it arrives. */
 type Pending = { sent: string | null; text: string; edits: ChatEdit[] };
-
-const isLocal = (m: ChatMessage) => m.id.startsWith("local-");
 
 /**
  * The chat with the planning agent. The server's list of messages is the truth
@@ -28,12 +26,17 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
 
   const [messages, setMessages] = useState(initialMessages);
   const [synced, setSynced] = useState(initialMessages);
+  // Ids of messages that arrived over the stream in this session.
+  const [added, setAdded] = useState<ReadonlySet<string>>(new Set());
   if (synced !== initialMessages) {
-    // A refresh brought the stored list: keep only what it doesn't have yet.
+    // A refresh brought the stored list.
     setSynced(initialMessages);
-    const known = new Set(initialMessages.map((m) => m.id));
-    setMessages((local) => [...initialMessages, ...local.filter((m) => !known.has(m.id) && !isLocal(m))]);
+    setMessages((local) => mergeMessages(initialMessages, local, added));
   }
+  const arrived = (message: ChatMessage) => {
+    setAdded((ids) => new Set(ids).add(message.id));
+    setMessages((list) => appendMessage(list, message));
+  };
 
   const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +44,9 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
   const abort = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+
+  // Leaving the page ends the turn in flight, like Stop.
+  useEffect(() => () => abort.current?.abort(), []);
 
   // Keep the newest message in view as it arrives.
   useEffect(() => {
@@ -62,7 +68,7 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
     const handle = (event: TurnEvent) => {
       if (event.type === "user") {
         reply = { ...reply, sent: null };
-        setMessages((m) => [...m, event.message]);
+        arrived(event.message);
       } else if (event.type === "text") {
         reply = { ...reply, text: reply.text + event.delta };
       } else if (event.type === "edit") {
@@ -73,7 +79,7 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
         setError(event.message);
       } else {
         finished = true;
-        if (event.message) setMessages((m) => [...m, event.message!]);
+        if (event.message) arrived(event.message);
       }
       if (!finished) setPending(reply);
     };
@@ -101,13 +107,15 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
     } catch (e) {
       if (!controller.signal.aborted) setError(e instanceof SendError ? e.message : "The connection dropped. Check the plan, then try again.");
     } finally {
+      // Not stored (stopped early, or it failed before saving): give the words back.
+      if (reply.sent) setDraft((current) => current || reply.sent!);
       if (!finished) {
-        // Stopped or cut off. Show what arrived; the stored copy replaces it on refresh.
-        if (reply.sent) setDraft(reply.sent);
+        // Stopped or cut off. Show what arrived until the stored reply replaces it;
+        // the server stores it a moment after it notices, so look more than once.
         if (reply.text || reply.edits.length) {
           setMessages((m) => [...m, { id: `local-${Date.now()}`, role: "assistant", text: reply.text, edits: reply.edits, batchId: null, undone: false }]);
         }
-        setTimeout(() => router.refresh(), 800);
+        for (const delay of [800, 2_500, 6_000]) setTimeout(() => router.refresh(), delay);
       }
       setPending(null);
       abort.current = null;
@@ -146,7 +154,14 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
               <ul className="flex flex-col items-center gap-2 pt-1">
                 {suggestions.map((s) => (
                   <li key={s}>
-                    <button type="button" onClick={() => send(s)} className={buttonClass("secondary", "rounded-lg font-normal")}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        input.current?.focus(); // the button is about to go
+                        send(s);
+                      }}
+                      className={buttonClass("secondary", "rounded-lg font-normal")}
+                    >
                       {s}
                     </button>
                   </li>
@@ -157,18 +172,22 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
         ) : (
           <>
             <h1 className="sr-only">{trip.name}</h1>
-            <ol role="log" aria-label="Conversation" className="mx-auto mt-auto flex w-full max-w-2xl flex-col gap-3">
-              {messages.map((m) => (
-                <Message key={m.id} message={m} tripId={trip.id} />
-              ))}
-              {pending?.sent && <Bubble role="user" text={pending.sent} />}
-              {pending && (
-                <li className="flex flex-col items-start gap-2">
-                  {pending.text ? <Text role="assistant" text={pending.text} /> : <p className="animate-pulse px-1 text-caption text-muted">Thinking…</p>}
-                  {pending.edits.length > 0 && <ChangeCard edits={pending.edits} />}
-                </li>
-              )}
-            </ol>
+            {/* A reply is announced once it is whole, not word by word. */}
+            <div role="log" aria-label="Conversation" aria-busy={pending !== null} className="mx-auto mt-auto w-full max-w-2xl">
+              <ol className="flex flex-col gap-3">
+                {messages.map((m) => (
+                  <Message key={m.id} message={m} tripId={trip.id} canUndo={itinerary.canEdit} />
+                ))}
+                {pending?.sent && <Bubble role="user" text={pending.sent} />}
+                {pending && (
+                  <li className="flex flex-col items-start gap-2">
+                    <span className="sr-only">Viatora:</span>
+                    {pending.text ? <Text role="assistant" text={pending.text} /> : <p className="animate-pulse px-1 text-caption text-muted">Thinking…</p>}
+                    {pending.edits.length > 0 && <ChangeCard edits={pending.edits} />}
+                  </li>
+                )}
+              </ol>
+            </div>
           </>
         )}
         {error && (
@@ -232,13 +251,13 @@ function Bubble({ role, text }: { role: ChatMessage["role"]; text: string }) {
   );
 }
 
-function Message({ message, tripId }: { message: ChatMessage; tripId: string }) {
+function Message({ message, tripId, canUndo }: { message: ChatMessage; tripId: string; canUndo: boolean }) {
   if (message.role === "user") return <Bubble role="user" text={message.text} />;
   return (
     <li className="flex flex-col items-start gap-2">
       <span className="sr-only">Viatora:</span>
       {message.text && <Text role="assistant" text={message.text} />}
-      {message.edits.length > 0 && <ChangeCard edits={message.edits} tripId={tripId} batchId={message.batchId} undone={message.undone} />}
+      {message.edits.length > 0 && <ChangeCard edits={message.edits} tripId={tripId} batchId={canUndo ? message.batchId : null} undone={message.undone} />}
     </li>
   );
 }

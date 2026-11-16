@@ -1,8 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { Json } from "@/lib/database.types";
-import type { ServerClient } from "@/lib/supabase/server";
-import type { RecentChange } from "./context";
+import { HISTORY_MESSAGE_LENGTH } from "./model";
 
 /** One applied edit, as shown on a change card. */
 export type ChatEdit = { summary: string };
@@ -19,7 +18,7 @@ export type ChatMessage = {
 };
 
 // messages.parts: text and the edits a reply made, in order.
-const partSchema = z.discriminatedUnion("type", [
+export const partSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), text: z.string() }),
   z.object({ type: z.literal("edit"), summary: z.string() }),
 ]);
@@ -32,9 +31,9 @@ export function toParts(text: string, edits: ChatEdit[] = []): MessagePart[] {
   return parts;
 }
 
-type Row = { id: string; role: "user" | "assistant"; parts: Json; change_batch_id: string | null; batch: { undone_at: string | null } | null };
+export type MessageRow = { id: string; role: "user" | "assistant"; parts: Json; change_batch_id: string | null; batch: { undone_at: string | null } | null };
 
-export function fromRow(row: Row): ChatMessage {
+export function fromRow(row: MessageRow): ChatMessage {
   const parts = z.array(partSchema).safeParse(row.parts);
   const list = parts.success ? parts.data : [];
   return {
@@ -47,44 +46,33 @@ export function fromRow(row: Row): ChatMessage {
   };
 }
 
-const SELECT = "id, role, parts, change_batch_id, batch:change_batches(undone_at)";
-
-/** The latest messages of a trip's chat, oldest first. */
-export async function loadMessages(supabase: ServerClient, tripId: string, limit = 60): Promise<ChatMessage[]> {
-  const { data, error } = await supabase.from("messages").select(SELECT).eq("trip_id", tripId).order("created_at", { ascending: false }).limit(limit);
-  if (error) throw error;
-  return data.reverse().map(fromRow);
-}
-
-export async function saveMessage(
-  supabase: ServerClient,
-  row: { tripId: string; authorId: string; role: "user" | "assistant"; parts: MessagePart[]; batchId?: string | null },
-): Promise<ChatMessage> {
-  const { data, error } = await supabase
-    .from("messages")
-    .insert({ trip_id: row.tripId, author_id: row.authorId, role: row.role, parts: row.parts, change_batch_id: row.batchId ?? null })
-    .select(SELECT)
-    .single();
-  if (error) throw error;
-  return fromRow(data);
+/**
+ * Earlier turns as the model sees them: words only. What the edits did is in
+ * the trip snapshot, which is why tool calls aren't replayed. Starts with the
+ * traveller, as a conversation must.
+ */
+export function toHistory(messages: ChatMessage[]): Anthropic.Beta.BetaMessageParam[] {
+  const clip = (t: string) => (t.length > HISTORY_MESSAGE_LENGTH ? `${t.slice(0, HISTORY_MESSAGE_LENGTH)}\n[…the rest of this message was left out]` : t);
+  const turns = messages.filter((m) => m.text.trim()).map((m) => ({ role: m.role, content: clip(m.text) }));
+  while (turns[0]?.role === "assistant") turns.shift();
+  return turns;
 }
 
 /**
- * Earlier turns as the model sees them: words only. What the edits did is in
- * the trip snapshot, which is why tool calls aren't replayed.
+ * The stored list from the server joined with what this session has added since.
+ * `added` holds the ids of messages that arrived over the stream; anything else
+ * in `local` is either already on the server or has scrolled out of its window.
+ * Unsaved copies (a stopped reply) stay until the stored reply shows up.
  */
-export function toHistory(messages: ChatMessage[]): Anthropic.Beta.BetaMessageParam[] {
-  return messages.filter((m) => m.text.trim()).map((m) => ({ role: m.role, content: m.text }));
+export function mergeMessages(server: ChatMessage[], local: ChatMessage[], added: ReadonlySet<string>): ChatMessage[] {
+  const known = new Set(server.map((m) => m.id));
+  const lastStored = server.at(-1);
+  const replyArrived = lastStored?.role === "assistant" && !local.some((m) => m.id === lastStored.id);
+  const extra = local.filter((m) => !known.has(m.id) && (isUnsaved(m) ? !replyArrived : added.has(m.id)));
+  return [...server, ...extra];
 }
 
-/** The last few changes to the trip, by hand or by chat, newest first. */
-export async function loadRecentChanges(supabase: ServerClient, tripId: string, limit = 8): Promise<RecentChange[]> {
-  const { data, error } = await supabase
-    .from("change_batches")
-    .select("actor, summary, undone_at")
-    .eq("trip_id", tripId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw error;
-  return data.filter((b) => b.summary).map((b) => ({ actor: b.actor, summary: b.summary, undone: Boolean(b.undone_at) }));
-}
+export const isUnsaved = (m: ChatMessage) => m.id.startsWith("local-");
+
+/** Adds a message unless it is already there. */
+export const appendMessage = (list: ChatMessage[], message: ChatMessage) => (list.some((m) => m.id === message.id) ? list : [...list, message]);

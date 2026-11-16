@@ -1,9 +1,9 @@
 import "server-only";
-import { z } from "zod";
 import { createClient, type ServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
 import { compareItems, sectionOf } from "./group";
 import { readTripProfile, tripProfileSchema } from "@/lib/trip-profile";
+import { schemas, type OpName, type OpOutput } from "./schemas";
 import { slotLabel, type DaySlot, type Item } from "./types";
 
 /**
@@ -28,80 +28,14 @@ export type EditContext = {
 
 export class EditError extends Error {}
 
-// ───────────────────────── Schemas ─────────────────────────
-
-const id = z.uuid();
-const time = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 09:30")
-  .nullable();
-const slot = z.enum(["morning", "afternoon", "evening", "night"]).nullable();
-const title = z.string().trim().min(1, "Give it a name").max(200);
-const currency = z
-  .string()
-  .regex(/^[A-Z]{3}$/)
-  .nullable();
-const amount = z.number().nonnegative().max(10_000_000).nullable();
-
-const itemFields = z.object({
-  title,
-  type: z.enum(["activity", "sight", "food", "stay", "transit", "flight", "rail", "note"]),
-  dayId: id.nullable(),
-  slot,
-  startTime: time,
-  endTime: time,
-  status: z.enum(["idea", "planned", "booked"]),
-  costAmount: amount,
-  costCurrency: currency,
-  notes: z.string().max(2000),
-});
-
-const checkTimes = (v: { startTime?: string | null; endTime?: string | null }) =>
-  !v.endTime || (v.startTime != null && v.endTime > v.startTime);
-const timesMessage = { message: "The end time needs a start time before it", path: ["endTime"] };
-
-export const schemas = {
-  addItem: itemFields
-    .partial()
-    .required({ title: true })
-    .extend({ dayId: id.nullable() })
-    .refine(checkTimes, timesMessage),
-  updateItem: z.object({ itemId: id, patch: itemFields.partial().refine(checkTimes, timesMessage) }),
-  deleteItem: z.object({ itemId: id }),
-  moveItem: z.object({ itemId: id, direction: z.enum(["earlier", "later"]) }),
-  addDay: z.object({ after: z.number().int().min(0).max(60).nullable().default(null) }),
-  removeDay: z.object({ dayId: id }),
-  moveDay: z.object({ dayId: id, to: z.number().int().min(1).max(60) }),
-  updateDay: z.object({ dayId: id, baseCity: z.string().trim().max(120).nullable() }),
-  updateTrip: z.object({
-    name: title.optional(),
-    destination: z.string().trim().max(200).nullable().optional(),
-    startDate: z.iso.date().nullable().optional(),
-    currency: z.string().regex(/^[A-Z]{3}$/).optional(),
-    budgetTotal: amount.optional(),
-  }),
-  /** Fields given replace what is stored; preferences are added and removed one by one. */
-  updateProfile: z.object({
-    travellers: tripProfileSchema.shape.travellers.unwrap().nullable().optional(),
-    pace: tripProfileSchema.shape.pace.unwrap().nullable().optional(),
-    interests: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
-    dietary: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
-    accessibility: z.string().trim().max(500).nullable().optional(),
-    addPreferences: z.array(z.string().trim().min(1).max(200)).max(10).optional(),
-    removePreferences: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
-  }),
-} as const;
-
-export type OpName = keyof typeof schemas;
-export type OpInput<N extends OpName> = z.input<(typeof schemas)[N]>;
-type Parsed<N extends OpName> = z.output<(typeof schemas)[N]>;
+export { schemas, type OpInput, type OpName } from "./schemas";
 
 // ───────────────────────── Helpers ─────────────────────────
 
 async function getItem(ctx: EditContext, itemId: string) {
   const { data, error } = await ctx.db
     .from("items")
-    .select("id, day_id, title, type, slot, start_time, end_time, status, position")
+    .select("id, day_id, title, type, slot, start_time, end_time, status, position, cost_amount, cost_currency")
     .eq("id", itemId)
     .eq("trip_id", ctx.tripId)
     .maybeSingle();
@@ -122,6 +56,11 @@ async function nextPosition(ctx: EditContext, dayId: string | null) {
   q = dayId ? q.eq("day_id", dayId) : q.is("day_id", null);
   const { data } = await q;
   return (data?.[0]?.position ?? 0) + 1;
+}
+
+async function tripCurrency(ctx: EditContext) {
+  const { data } = check(await ctx.db.from("trips").select("currency").eq("id", ctx.tripId).maybeSingle());
+  return data?.currency ?? null;
 }
 
 function check<T extends { error: unknown }>(res: T): T {
@@ -152,7 +91,7 @@ function normaliseWhen(p: { slot?: DaySlot | null; startTime?: string | null; en
 
 // ───────────────────────── Ops ─────────────────────────
 
-const run: { [N in OpName]: (ctx: EditContext, input: Parsed<N>) => Promise<{ summary: string; id?: string }> } = {
+const run: { [N in OpName]: (ctx: EditContext, input: OpOutput<N>) => Promise<{ summary: string; id?: string }> } = {
   async addItem(ctx, input) {
     const day = input.dayId ? await getDay(ctx, input.dayId) : null;
     const summary = `Added ${quote(input.title)} to ${day ? `Day ${day.number}` : "ideas"}`;
@@ -187,13 +126,18 @@ const run: { [N in OpName]: (ctx: EditContext, input: Parsed<N>) => Promise<{ su
     if (patch.notes !== undefined) update.notes = patch.notes;
     if (patch.costAmount !== undefined) {
       update.cost_amount = patch.costAmount;
-      update.cost_currency = patch.costAmount == null ? null : (patch.costCurrency ?? null);
+      // A new amount keeps the item's own currency unless one is named; an item that never had a cost takes the trip's.
+      update.cost_currency = patch.costAmount == null ? null : (patch.costCurrency ?? before.cost_currency ?? (await tripCurrency(ctx)));
+    } else if (patch.costCurrency != null && patch.costCurrency !== before.cost_currency) {
+      if (before.cost_amount == null) throw new EditError("There's no cost on that yet. Give the amount as well.");
+      update.cost_currency = patch.costCurrency;
     }
     if (patch.dayId !== undefined && patch.dayId !== before.day_id) {
       update.day_id = patch.dayId;
       update.position = await nextPosition(ctx, patch.dayId);
     }
     if (update.cost_amount != null && !update.cost_currency) throw new EditError("Pick a currency for the cost.");
+    if (Object.keys(update).length === 0) throw new EditError("Nothing to change.");
 
     const name = quote(update.title ?? before.title);
     let summary = `Updated ${name}`;
@@ -249,6 +193,7 @@ const run: { [N in OpName]: (ctx: EditContext, input: Parsed<N>) => Promise<{ su
 
   async addDay(ctx, { after }) {
     const { count } = check(await ctx.db.from("days").select("id", { count: "exact", head: true }).eq("trip_id", ctx.tripId));
+    if ((count ?? 0) >= 60) throw new EditError("A trip can have at most 60 days.");
     const number = Math.min(after ?? count ?? 0, count ?? 0) + 1;
     const summary = `Added Day ${number}`;
     const w = await ctx.writer(summary);
@@ -270,6 +215,9 @@ const run: { [N in OpName]: (ctx: EditContext, input: Parsed<N>) => Promise<{ su
 
   async moveDay(ctx, { dayId, to }) {
     const day = await getDay(ctx, dayId);
+    const { count } = check(await ctx.db.from("days").select("id", { count: "exact", head: true }).eq("trip_id", ctx.tripId));
+    to = Math.min(to, count ?? to); // past the end means last
+    if (to === day.number) throw new EditError(`Day ${day.number} is already there.`);
     const summary = `Moved Day ${day.number} to Day ${to}`;
     const w = await ctx.writer(summary);
     check(await w.rpc("move_day", { p_day_id: dayId, p_to: to }));
@@ -292,6 +240,7 @@ const run: { [N in OpName]: (ctx: EditContext, input: Parsed<N>) => Promise<{ su
     if (input.startDate !== undefined) update.start_date = input.startDate;
     if (input.currency !== undefined) update.currency = input.currency;
     if (input.budgetTotal !== undefined) update.budget_total = input.budgetTotal;
+    if (Object.keys(update).length === 0) throw new EditError("Nothing to change.");
     const summary =
       Object.keys(update).length === 1 && "start_date" in update
         ? update.start_date
@@ -321,6 +270,8 @@ const run: { [N in OpName]: (ctx: EditContext, input: Parsed<N>) => Promise<{ su
       preferences: [...before.preferences.filter((p) => !dropped.some((d) => same(p, d))), ...added],
     });
     if (!next.success) throw new EditError("That's more than the trip profile can hold. Remove something first.");
+    // Nothing would be written or logged, so there would be nothing to undo.
+    if (JSON.stringify(next.data) === JSON.stringify(before)) throw new EditError("The trip profile already says that.");
 
     const onlyPreferences = Object.keys(input).every((k) => k === "addPreferences" || k === "removePreferences");
     const summary = onlyPreferences && added.length === 1 && dropped.length === 0 ? `Noted: ${quote(added[0])}` : "Updated the trip profile";

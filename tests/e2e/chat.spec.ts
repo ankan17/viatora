@@ -99,10 +99,57 @@ test("answers without changes, and reports problems", async ({ page }) => {
   await expect(chat(page).getByText("There's no Day 9 on this trip")).toBeVisible();
   await expect(card(page)).toHaveCount(0);
 
-  // The model being unavailable is said plainly, and the message can be sent again.
+  // The model failing is said plainly, and the chat is ready for another try.
   await ask(page, "Is anything out of order?");
   await expect(chat(page).getByRole("alert")).toContainText("Something went wrong on my side. Try again.");
-  await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
+  await expect(chat(page).getByText("Is anything out of order?")).toBeVisible();
+  await ask(page, "Thanks anyway");
+  await expect(chat(page).getByRole("alert")).toHaveCount(0);
+  await expect(chat(page).getByText("Keep the first day light, then build up.")).toHaveCount(2);
+});
+
+test("a turn can take several steps, and ends cleanly when it can't finish", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the loop is the same on both; once is enough");
+  await signInNewUser(page);
+  await createTrip(page, "Edge cases", { days: 3 });
+  const it = page.getByRole("complementary", { name: "Itinerary" });
+  const lastCard = () => card(page).last();
+
+  // The second edit needs the day the first one made.
+  await ask(page, "Add a day for Nara");
+  await expect(chat(page).getByText("There's a new last day with the deer park on it.")).toBeVisible();
+  await expect(lastCard()).toContainText("2 changes to the plan");
+  await expect(lastCard()).toContainText("Added Day 4");
+  await expect(lastCard()).toContainText("Added “Nara deer park” to Day 4");
+  await it.getByRole("button", { name: "Day 4", exact: true }).click();
+  await expect(it.getByRole("button", { name: /Nara deer park/ })).toBeVisible();
+
+  // A tool that doesn't exist is answered with an error the model can read, not a crash.
+  await ask(page, "Teleport us to Osaka");
+  await expect(chat(page).getByText("That isn't something I can do here.")).toBeVisible();
+  await expect(card(page)).toHaveCount(1);
+
+  // The model says nothing at all.
+  await ask(page, "Say nothing");
+  await expect(chat(page).getByText("I don't have anything to add to that.")).toBeVisible();
+
+  // The model is cut off mid-sentence.
+  await ask(page, "Give me the long answer");
+  await expect(chat(page).getByText(/and then\s+I ran out of room there\. Ask me to continue\./)).toBeVisible();
+
+  // The model never stops calling tools: the turn ends at the step limit and says so.
+  await ask(page, "Keep going with ideas");
+  await expect(chat(page).getByText("That's as far as I can go in one reply.")).toBeVisible({ timeout: 30_000 });
+  await expect(lastCard()).toContainText("12 changes to the plan");
+  await expect(chat(page).getByRole("alert")).toHaveCount(0);
+});
+
+test("only people on a trip can chat on it", async ({ page }) => {
+  await signInNewUser(page);
+  const res = await page.request.post(`/api/trips/${randomUUID()}/chat`, { data: { text: "Add ramen" } });
+  expect(await res.text()).toBe('{"type":"error","message":"We can\'t find that trip."}\n{"type":"done","message":null}\n');
+  const invalid = await page.request.post("/api/trips/not-a-trip/chat", { data: { text: "" } });
+  expect(invalid.status()).toBe(400);
 });
 
 test("what the group says about itself is saved and sent with later turns", async ({ page, request }) => {
@@ -135,6 +182,10 @@ test("a reply can be stopped, and what arrived is kept", async ({ page }) => {
   await page.getByRole("button", { name: "Stop" }).click();
   await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
   await expect(chat(page).getByRole("alert")).toHaveCount(0);
+  // It stays on screen while the stored copy takes its place.
+  await page.waitForTimeout(3_000);
+  await expect(chat(page).getByText(/One thing at a time\. First/)).toHaveCount(1);
+  await expect(chat(page).getByText("after that we rest")).toHaveCount(0);
 
   // The part that arrived is stored (a moment after the stop reaches the server); the rest never came.
   await expect(async () => {

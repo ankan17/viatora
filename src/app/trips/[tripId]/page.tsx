@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { TripScreen } from "@/components/itinerary/trip-screen";
-import { loadMessages } from "@/lib/agent/messages";
+import { loadMessages } from "@/lib/agent/store";
 import { requireUser } from "@/lib/auth";
 import { loadItinerary } from "@/lib/itinerary/snapshot";
 import { createClient } from "@/lib/supabase/server";

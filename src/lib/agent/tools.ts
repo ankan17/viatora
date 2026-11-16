@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import type { OpInput, OpName } from "@/lib/itinerary/ops";
+import type { OpInput, OpName } from "@/lib/itinerary/schemas";
 
 /**
  * The edit tools the chat agent can call. Each one maps onto an op in
@@ -27,7 +27,7 @@ const itemFields = {
   day: dayNumber.nullable().describe("Day number, or null to keep it in ideas (not on a day)."),
   part_of_day: partOfDay.nullable().describe("Rough timing. Use this or start_time, not both."),
   start_time: time.nullable(),
-  end_time: time.nullable().describe("Needs a start_time before it."),
+  end_time: time.nullable().describe("Always send start_time with it, even if the start isn't changing."),
   status,
   cost: cost.nullable().describe("For the whole group. An estimate unless the traveller gave the figure."),
   currency,
@@ -46,7 +46,7 @@ export const toolSchemas = {
   move_day: z.object({ day: dayNumber, to: dayNumber.describe("The position it should end up at.") }),
   set_day_city: z.object({ day: dayNumber, city: z.string().trim().max(120).nullable().describe("Where they sleep that night, or null to clear it.") }),
   update_trip: z.object({
-    name: z.string().trim().min(1).max(200).optional(),
+    name: z.string().trim().min(1).max(120).optional(),
     destination: z.string().trim().max(200).nullable().optional(),
     start_date: z.iso.date().nullable().optional().describe("First day, YYYY-MM-DD, or null to clear the dates."),
     currency: z.string().regex(/^[A-Z]{3}$/).optional(),
@@ -124,8 +124,16 @@ export function toOp(name: ToolName, raw: unknown, trip: { dayIds: ReadonlyMap<n
     }
     return result.data as z.output<(typeof toolSchemas)[N]>;
   };
-  /** Fields shared by add_item and update_item, renamed for the op. Absent stays absent. */
-  const itemPatch = (i: Partial<z.output<typeof toolSchemas.add_item>>) => ({
+  const nonEmpty = <T extends object>(fields: T): T => {
+    if (Object.keys(fields).length === 0) throw new ToolInputError("Nothing to change. Include at least one field to update.");
+    return fields;
+  };
+  /**
+   * Fields shared by add_item and update_item, renamed for the op. Absent stays
+   * absent. A new item's cost takes the trip's currency unless one is named; an
+   * update leaves that to the op, which knows the item's own currency.
+   */
+  const itemPatch = (i: Partial<z.output<typeof toolSchemas.add_item>>, isNew: boolean) => ({
     ...(i.title !== undefined && { title: i.title }),
     ...(i.kind !== undefined && { type: i.kind }),
     ...(i.day !== undefined && { dayId: i.day === null ? null : dayId(i.day) }),
@@ -133,18 +141,19 @@ export function toOp(name: ToolName, raw: unknown, trip: { dayIds: ReadonlyMap<n
     ...(i.start_time !== undefined && { startTime: i.start_time }),
     ...(i.end_time !== undefined && { endTime: i.end_time }),
     ...(i.status !== undefined && { status: i.status }),
-    ...(i.cost !== undefined && { costAmount: i.cost, costCurrency: i.cost === null ? null : (i.currency ?? trip.currency) }),
+    ...(i.cost !== undefined && { costAmount: i.cost }),
+    ...(isNew ? i.cost != null && { costCurrency: i.currency ?? trip.currency } : i.currency !== undefined && { costCurrency: i.currency }),
     ...(i.notes !== undefined && { notes: i.notes }),
   });
 
   switch (name) {
     case "add_item": {
       const i = parse("add_item");
-      return { op: "addItem", input: { dayId: null, ...itemPatch(i), title: i.title } };
+      return { op: "addItem", input: { dayId: null, ...itemPatch(i, true), title: i.title } };
     }
     case "update_item": {
       const { item_id, ...rest } = parse("update_item");
-      return { op: "updateItem", input: { itemId: item_id, patch: itemPatch(rest) } };
+      return { op: "updateItem", input: { itemId: item_id, patch: nonEmpty(itemPatch(rest, false)) } };
     }
     case "remove_item":
       return { op: "deleteItem", input: { itemId: parse("remove_item").item_id } };
@@ -168,20 +177,20 @@ export function toOp(name: ToolName, raw: unknown, trip: { dayIds: ReadonlyMap<n
       const i = parse("update_trip");
       return {
         op: "updateTrip",
-        input: {
+        input: nonEmpty({
           ...(i.name !== undefined && { name: i.name }),
           ...(i.destination !== undefined && { destination: i.destination }),
           ...(i.start_date !== undefined && { startDate: i.start_date }),
           ...(i.currency !== undefined && { currency: i.currency }),
           ...(i.budget !== undefined && { budgetTotal: i.budget }),
-        },
+        }),
       };
     }
     case "update_profile": {
       const i = parse("update_profile");
       return {
         op: "updateProfile",
-        input: {
+        input: nonEmpty({
           ...(i.travellers !== undefined && {
             travellers: i.travellers && { adults: i.travellers.adults, childAges: i.travellers.child_ages ?? [] },
           }),
@@ -191,7 +200,7 @@ export function toOp(name: ToolName, raw: unknown, trip: { dayIds: ReadonlyMap<n
           ...(i.accessibility !== undefined && { accessibility: i.accessibility }),
           ...(i.add_preferences !== undefined && { addPreferences: i.add_preferences }),
           ...(i.remove_preferences !== undefined && { removePreferences: i.remove_preferences }),
-        },
+        }),
       };
     }
   }

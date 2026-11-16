@@ -5,8 +5,9 @@ import { loadItinerary } from "@/lib/itinerary/snapshot";
 import type { ServerClient } from "@/lib/supabase/server";
 import { turnContext } from "./context";
 import type { TurnEvent } from "./events";
-import { loadMessages, loadRecentChanges, saveMessage, toHistory, toParts, type ChatEdit } from "./messages";
-import { EFFORT, HISTORY_LIMIT, MAX_STEPS, MAX_TOKENS, MODEL, SYSTEM_PROMPT } from "./model";
+import { toHistory, type ChatEdit } from "./messages";
+import { DAILY_MESSAGE_LIMIT, EFFORT, HISTORY_LIMIT, MAX_STEPS, MAX_TOKENS, MODEL, SYSTEM_PROMPT } from "./model";
+import { countRecentMessages, loadMessages, loadRecentChanges, saveReply, saveUserMessage } from "./store";
 import { isToolName, ToolInputError, toOp, tools } from "./tools";
 
 let client: Anthropic | undefined;
@@ -20,27 +21,39 @@ type Turn = {
   text: string;
   /** The day on the traveller's screen. */
   dayId: string | null;
+  /** Aborts when the traveller presses Stop or leaves. */
   signal: AbortSignal;
   emit: (event: TurnEvent) => void;
 };
 
+type Block = Anthropic.Beta.BetaContentBlock;
+type ToolUse = Anthropic.Beta.BetaToolUseBlock;
+
 /**
  * One chat turn: stores the traveller's message, lets the model answer and call
  * edit tools until it is done, then stores the reply. Every edit in the turn
- * joins one change batch, so the reply's card undoes them together.
+ * joins one change batch, so the reply's card undoes them together. Always ends
+ * with a `done` event.
  */
 export async function runTurn({ supabase, userId, tripId, text, dayId, signal, emit }: Turn): Promise<void> {
+  const refuse = (message: string) => {
+    emit({ type: "error", message });
+    emit({ type: "done", message: null });
+  };
   const itinerary = await loadItinerary(supabase, tripId);
-  if (!itinerary) return emit({ type: "error", message: "We can't find that trip." });
-  if (!itinerary.canEdit) return emit({ type: "error", message: "You can view this trip but not edit it, so chat is off." });
+  if (!itinerary) return refuse("We can't find that trip.");
+  if (!itinerary.canEdit) return refuse("You can view this trip but not edit it, so chat is off.");
+  if ((await countRecentMessages(supabase, userId)) >= DAILY_MESSAGE_LIMIT) {
+    return refuse("That's the limit for today. You can keep planning by hand, and chat again tomorrow.");
+  }
 
   const [earlier, recent] = await Promise.all([loadMessages(supabase, tripId, HISTORY_LIMIT), loadRecentChanges(supabase, tripId)]);
-  emit({ type: "user", message: await saveMessage(supabase, { tripId, authorId: userId, role: "user", parts: toParts(text) }) });
+  // Stopped before anything was stored: the browser still has the draft.
+  if (signal.aborted) return emit({ type: "done", message: null });
+  emit({ type: "user", message: await saveUserMessage(supabase, { tripId, authorId: userId, text }) });
 
-  const history = toHistory(earlier);
-  while (history[0]?.role === "assistant") history.shift(); // a conversation starts with the traveller
   const messages: Anthropic.Beta.BetaMessageParam[] = [
-    ...history,
+    ...toHistory(earlier),
     {
       role: "user",
       content: [
@@ -60,8 +73,13 @@ export async function runTurn({ supabase, userId, tripId, text, dayId, signal, e
     reply += delta;
     emit({ type: "text", delta });
   };
+  /** A closing line of our own, set apart from whatever the model wrote. */
+  const note = (line: string) => {
+    paragraphBreak = true;
+    say(line);
+  };
 
-  async function runTool(block: Anthropic.Beta.BetaToolUseBlock): Promise<Anthropic.Beta.BetaToolResultBlockParam> {
+  async function runTool(block: ToolUse): Promise<Anthropic.Beta.BetaToolResultBlockParam> {
     const fail = (message: string) => ({ type: "tool_result" as const, tool_use_id: block.id, is_error: true, content: message });
     if (!isToolName(block.name)) return fail(`There is no tool called ${block.name}.`);
     try {
@@ -94,8 +112,9 @@ export async function runTurn({ supabase, userId, tripId, text, dayId, signal, e
   }
 
   let failure: string | null = null;
+  let finished = false; // the model ended its turn on its own
   try {
-    for (let step = 0; step < MAX_STEPS; step++) {
+    for (let step = 0; step < MAX_STEPS && !signal.aborted; step++) {
       const stream = anthropic().beta.messages.stream(
         {
           model: MODEL,
@@ -117,25 +136,33 @@ export async function runTurn({ supabase, userId, tripId, text, dayId, signal, e
       paragraphBreak = true;
 
       if (message.stop_reason === "refusal") {
-        if (!reply) say("I can't help with that one. Is there something else about the trip I can do?");
+        note(reply ? "I can't take that any further." : "I can't help with that one. Is there something else about the trip I can do?");
+        finished = true;
+        break;
+      }
+      const { calls, echo } = afterFallback(message.content);
+      if (message.stop_reason === "max_tokens" || message.stop_reason === "model_context_window_exceeded") {
+        // A tool input may be cut short, so nothing from this step runs.
+        note(calls.length ? "That was more than I could do in one go. Ask for a smaller piece and I'll carry on." : "I ran out of room there. Ask me to continue.");
+        finished = true;
         break;
       }
       if (message.stop_reason === "pause_turn") {
-        messages.push({ role: "assistant", content: message.content });
+        messages.push({ role: "assistant", content: echo });
         continue;
       }
-      const calls = message.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
-      if (calls.length === 0) break;
-      if (message.stop_reason === "max_tokens") {
-        // The last tool input may be cut short; don't run it.
-        failure = "That was more than I could do in one go. Try asking for a smaller piece.";
+      if (calls.length === 0) {
+        finished = true;
         break;
       }
 
-      messages.push({ role: "assistant", content: message.content });
+      messages.push({ role: "assistant", content: echo });
       const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
       // One at a time and in order: positions and day numbers depend on the edits before.
-      for (const call of calls) results.push(await runTool(call));
+      for (const call of calls) {
+        if (signal.aborted) break; // stopped: the edits not yet made stay unmade
+        results.push(await runTool(call));
+      }
       messages.push({ role: "user", content: results });
     }
   } catch (e) {
@@ -145,34 +172,54 @@ export async function runTurn({ supabase, userId, tripId, text, dayId, signal, e
     }
   }
 
-  if (!reply.trim() && edits.length && !failure) say("Done. The changes are listed below.");
+  if (!failure && !signal.aborted) {
+    if (!finished) note("That's as far as I can go in one reply. Ask me to continue and I'll pick up from here.");
+    else if (!reply.trim()) note(edits.length ? "Done. The changes are listed below." : "I don't have anything to add to that. Could you put it another way?");
+  }
 
   // Stored even after a failure or a stop, so edits that did land keep their undo card.
   let stored = null;
-  if (reply.trim() || edits.length) {
-    const batch = edits.length ? await supabase.from("change_batches").select("id").eq("id", ctx.batchId).maybeSingle() : null;
-    stored = await saveMessage(supabase, {
-      tripId,
-      authorId: userId,
-      role: "assistant",
-      parts: toParts(reply, edits),
-      batchId: batch?.data?.id ?? null,
-    });
+  try {
+    if (reply.trim() || edits.length) {
+      const batch = edits.length ? await supabase.from("change_batches").select("id").eq("id", ctx.batchId).maybeSingle() : null;
+      stored = await saveReply({ tripId, authorId: userId, text: reply, edits, batchId: batch?.data?.id ?? null });
+    }
+  } catch (e) {
+    console.error("chat reply not stored:", e);
+    failure ??= "I couldn't save that reply. Reload to see where the plan stands.";
   }
   if (failure) emit({ type: "error", message: failure });
   emit({ type: "done", message: stored });
 }
 
+/**
+ * When the API switched models part-way through a reply (a `fallback` block),
+ * only what follows the switch counts: tool calls before it were the declined
+ * model's and must not run, and its thinking and tool calls are left out when
+ * the turn is sent back. The fallback block itself stays where it was.
+ */
+function afterFallback(content: Block[]): { calls: ToolUse[]; echo: Block[] } {
+  const boundary = content.findLastIndex((b) => b.type === "fallback");
+  const dropped = new Set(["thinking", "redacted_thinking", "tool_use"]);
+  return {
+    calls: content.filter((b, i): b is ToolUse => b.type === "tool_use" && i > boundary),
+    echo: content.filter((b, i) => i >= boundary || !dropped.has(b.type)),
+  };
+}
+
 function describeFailure(e: unknown): string {
+  const generic = "Something went wrong on my side. Try again.";
   if (e instanceof Anthropic.RateLimitError || (e instanceof Anthropic.APIError && e.status === 529)) {
     return "I'm getting a lot of requests right now. Try again in a moment.";
   }
-  if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) {
+  if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return "Chat isn't set up on this server yet.";
+  if (e instanceof Anthropic.APIConnectionError) return "I couldn't reach the planner just now. Check your connection and try again.";
+  if (e instanceof Anthropic.APIError) return generic;
+  // No key, token or profile at all. The stream helper wraps every other kind of
+  // error the same way (a dropped connection, a cut-off tool input), so the
+  // message is the only thing that tells this one apart.
+  if (e instanceof Error && /Could not resolve authentication method/.test(`${e.message} ${e.cause instanceof Error ? e.cause.message : ""}`)) {
     return "Chat isn't set up on this server yet.";
   }
-  if (e instanceof Anthropic.APIConnectionError) return "I couldn't reach the planner just now. Check your connection and try again.";
-  if (e instanceof Anthropic.APIError) return "Something went wrong on my side. Try again.";
-  // The SDK throws a plain AnthropicError when it has no credentials at all.
-  if (e instanceof Anthropic.AnthropicError) return "Chat isn't set up on this server yet.";
-  return "Something went wrong on my side. Try again.";
+  return generic;
 }
