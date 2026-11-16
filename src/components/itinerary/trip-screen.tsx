@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ChevronLeft, ChevronUp, Settings } from "@/components/ui/icons";
+import { Chat } from "@/components/chat/chat";
+import type { ChatMessage } from "@/lib/agent/messages";
 import { dayLabel } from "@/lib/dates";
 import type { Itinerary } from "@/lib/itinerary/types";
 import { ItemEditor } from "./item-editor";
@@ -11,17 +13,17 @@ import { ItinerarySheet, type SheetState } from "./itinerary-sheet";
 import { TripDetailsDialog } from "./trip-details";
 import { TripProvider, UndoToast, useTrip } from "./trip-context";
 
-export function TripScreen({ itinerary }: { itinerary: Itinerary }) {
+export function TripScreen({ itinerary, messages }: { itinerary: Itinerary; messages: ChatMessage[] }) {
   return (
     <TripProvider itinerary={itinerary}>
-      <Screen />
+      <Screen messages={messages} />
       <ItemEditor />
       <UndoToast />
     </TripProvider>
   );
 }
 
-function Screen() {
+function Screen({ messages }: { messages: ChatMessage[] }) {
   const { itinerary, day } = useTrip();
   const [sheet, setSheet] = useState<SheetState>("closed");
   const [details, setDetails] = useState(false);
@@ -56,18 +58,7 @@ function Screen() {
           )}
         </header>
 
-        <section aria-label="Chat" className="flex flex-1 flex-col items-center justify-center gap-2 overflow-y-auto px-4 py-6 text-center">
-          <h1 className="text-title">Let&apos;s plan {trip.destination ?? "this trip"}</h1>
-          <p className="max-w-sm text-body text-muted">
-            Planning by chat is on its way. For now, tap the bar above to build your days by hand.
-          </p>
-        </section>
-
-        <div className="border-t border-hairline bg-raised px-4 pb-[max(env(safe-area-inset-bottom),12px)] pt-3">
-          <div className="flex min-h-11 items-center rounded-lg border border-outline px-4 text-body text-muted" aria-disabled>
-            Ask about {day ? `Day ${day.number}` : "your trip"}…
-          </div>
-        </div>
+        <Chat initialMessages={messages} />
       </div>
 
       <aside aria-label="Itinerary" className="hidden min-h-0 border-l border-hairline bg-ground lg:flex lg:flex-col">

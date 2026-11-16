@@ -17,6 +17,7 @@ export const Plus = (p: P) => <Icon d="M12 5v14M5 12h14" {...p} />;
 export const More = (p: P) => <Icon d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth={3} {...p} />;
 export const ArrowUp = (p: P) => <Icon d="M12 19V5M6 11l6-6 6 6" {...p} />;
 export const ArrowDown = (p: P) => <Icon d="M12 5v14M6 13l6 6 6-6" {...p} />;
+export const Stop = (p: P) => <Icon d="M7 7h10v10H7z" {...p} />;
 export const Chat = (p: P) => <Icon d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" {...p} />;
 export const Settings = (p: P) => (
   <Icon d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4" {...p} />

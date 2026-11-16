@@ -24,7 +24,7 @@ export type Item = Pick<
 
 export type Day = Pick<Tables["days"]["Row"], "id" | "number" | "base_city" | "notes"> & { items: Item[] };
 
-export type Trip = Pick<Tables["trips"]["Row"], "id" | "name" | "destination" | "start_date" | "currency" | "budget_total">;
+export type Trip = Pick<Tables["trips"]["Row"], "id" | "name" | "destination" | "start_date" | "currency" | "budget_total" | "profile">;
 
 /** Everything the itinerary screens need, in one read. */
 export type Itinerary = { trip: Trip; days: Day[]; ideas: Item[]; canEdit: boolean };

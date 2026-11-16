@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient, type ServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
 import { compareItems, sectionOf } from "./group";
+import { readTripProfile, tripProfileSchema } from "@/lib/trip-profile";
 import { slotLabel, type DaySlot, type Item } from "./types";
 
 /**
@@ -78,6 +79,16 @@ export const schemas = {
     startDate: z.iso.date().nullable().optional(),
     currency: z.string().regex(/^[A-Z]{3}$/).optional(),
     budgetTotal: amount.optional(),
+  }),
+  /** Fields given replace what is stored; preferences are added and removed one by one. */
+  updateProfile: z.object({
+    travellers: tripProfileSchema.shape.travellers.unwrap().nullable().optional(),
+    pace: tripProfileSchema.shape.pace.unwrap().nullable().optional(),
+    interests: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
+    dietary: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+    accessibility: z.string().trim().max(500).nullable().optional(),
+    addPreferences: z.array(z.string().trim().min(1).max(200)).max(10).optional(),
+    removePreferences: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   }),
 } as const;
 
@@ -289,6 +300,32 @@ const run: { [N in OpName]: (ctx: EditContext, input: Parsed<N>) => Promise<{ su
         : "Updated trip details";
     const w = await ctx.writer(summary);
     check(await w.from("trips").update(update).eq("id", ctx.tripId));
+    return { summary };
+  },
+
+  async updateProfile(ctx, input) {
+    const { data } = check(await ctx.db.from("trips").select("profile").eq("id", ctx.tripId).maybeSingle());
+    if (!data) throw new EditError("That trip no longer exists.");
+    const before = readTripProfile(data.profile);
+    const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+    const added = (input.addPreferences ?? []).filter((p) => !before.preferences.some((q) => same(p, q)));
+    const dropped = input.removePreferences ?? [];
+
+    const next = tripProfileSchema.safeParse({
+      ...before,
+      ...(input.travellers !== undefined && { travellers: input.travellers ?? undefined }),
+      ...(input.pace !== undefined && { pace: input.pace ?? undefined }),
+      ...(input.interests !== undefined && { interests: input.interests }),
+      ...(input.dietary !== undefined && { dietary: input.dietary }),
+      ...(input.accessibility !== undefined && { accessibility: input.accessibility || undefined }),
+      preferences: [...before.preferences.filter((p) => !dropped.some((d) => same(p, d))), ...added],
+    });
+    if (!next.success) throw new EditError("That's more than the trip profile can hold. Remove something first.");
+
+    const onlyPreferences = Object.keys(input).every((k) => k === "addPreferences" || k === "removePreferences");
+    const summary = onlyPreferences && added.length === 1 && dropped.length === 0 ? `Noted: ${quote(added[0])}` : "Updated the trip profile";
+    const w = await ctx.writer(summary);
+    check(await w.from("trips").update({ profile: next.data }).eq("id", ctx.tripId));
     return { summary };
   },
 };

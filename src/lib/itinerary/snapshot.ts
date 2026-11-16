@@ -8,7 +8,7 @@ const ITEM_FIELDS =
 /** Loads a trip's whole itinerary, or null if it doesn't exist or isn't shared with this user. */
 export async function loadItinerary(supabase: ServerClient, tripId: string): Promise<Itinerary | null> {
   const [tripRes, daysRes, itemsRes, roleRes] = await Promise.all([
-    supabase.from("trips").select("id, name, destination, start_date, currency, budget_total").eq("id", tripId).maybeSingle(),
+    supabase.from("trips").select("id, name, destination, start_date, currency, budget_total, profile").eq("id", tripId).maybeSingle(),
     supabase.from("days").select("id, number, base_city, notes").eq("trip_id", tripId).order("number"),
     supabase.from("items").select(ITEM_FIELDS).eq("trip_id", tripId).order("position"),
     supabase.rpc("can_edit_trip", { p_trip_id: tripId }),

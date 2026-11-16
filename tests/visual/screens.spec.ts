@@ -132,6 +132,35 @@ test("a planned trip and its dialogs", async ({ page }, info) => {
   await shot(page, "item-added");
 });
 
+// The replies come from the scripted model in tests/fake-model/server.mjs.
+test("chat", async ({ page }, info) => {
+  const db = await signedInUser(page);
+  await page.goto(`/trips/${await seedPlannedTrip(db)}`);
+  const chat = page.getByRole("region", { name: "Chat" });
+  const message = page.getByRole("textbox", { name: "Message" });
+  const card = chat.getByRole("group", { name: "Changes to the plan" });
+
+  // The changed card on the itinerary is marked "just now" for a few seconds; run the clock past that.
+  await page.clock.install();
+  await message.fill("Add a ramen dinner to day 1");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(chat.getByText("Ichiran ramen is on Day 1 for the evening.")).toBeVisible();
+  await expect(card.getByRole("button", { name: "Undo" })).toBeVisible();
+  if (info.project.name === "desktop") await expect(page.getByRole("complementary", { name: "Itinerary" }).getByRole("button", { name: /Ichiran ramen/ })).toBeVisible();
+  await page.clock.fastForward(5_000);
+  await expect(page.getByText("just now")).toHaveCount(0);
+  await shot(page, "chat-reply");
+
+  await card.getByRole("button", { name: "Undo" }).click();
+  await expect(card).toContainText("Undone");
+  await expect(page.getByRole("button", { name: /Ichiran ramen/ })).toHaveCount(0);
+  await message.fill("Is anything out of order?");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(chat.getByRole("alert")).toBeVisible();
+  await message.fill("We also want a tea ceremony,\nideally on a slow afternoon.");
+  await shot(page, "chat-undone-error-draft");
+});
+
 async function closeDialog(page: Page) {
   const dialog = page.locator("dialog[open]");
   await dialog.getByRole("button", { name: "Close" }).click();
