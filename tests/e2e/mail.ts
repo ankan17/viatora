@@ -31,7 +31,8 @@ export async function signIn(page: Page, email: string) {
   const { code } = await latestSignInEmail(email);
   await page.getByLabel("6-digit code").fill(code);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/trips$/);
+  // Generous: on a cold dev server this is the first time /trips is compiled.
+  await expect(page).toHaveURL(/\/trips$/, { timeout: 15_000 });
 }
 
 /** Signs a brand-new user in with the emailed code. */
@@ -49,4 +50,12 @@ export async function createTrip(page: Page, name: string, opts: { destination?:
   await page.getByLabel("Days").fill(String(opts.days ?? 3));
   await page.getByRole("button", { name: "Start planning" }).click();
   await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}$/);
+}
+
+/** The full itinerary: the side panel on desktop, the full sheet on phone. */
+export async function openItinerary(page: Page, isPhone: boolean) {
+  if (!isPhone) return page.getByRole("complementary", { name: "Itinerary" });
+  await page.getByRole("button", { name: /Show itinerary/ }).click();
+  await page.getByRole("button", { name: "Open full itinerary" }).click();
+  return page.getByRole("dialog", { name: "Full itinerary" });
 }

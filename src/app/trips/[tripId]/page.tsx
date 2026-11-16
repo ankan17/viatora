@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { TripScreen } from "@/components/itinerary/trip-screen";
+import { loadMessages } from "@/lib/agent/messages";
 import { requireUser } from "@/lib/auth";
 import { loadItinerary } from "@/lib/itinerary/snapshot";
 import { createClient } from "@/lib/supabase/server";
@@ -28,7 +29,8 @@ async function Trip({ params }: Pick<PageProps<"/trips/[tripId]">, "params">) {
   await requireUser();
   const { tripId } = await params;
   if (!UUID.test(tripId)) notFound();
-  const itinerary = await loadItinerary(await createClient(), tripId);
+  const supabase = await createClient();
+  const [itinerary, messages] = await Promise.all([loadItinerary(supabase, tripId), loadMessages(supabase, tripId)]);
   if (!itinerary) notFound();
-  return <TripScreen itinerary={itinerary} />;
+  return <TripScreen itinerary={itinerary} messages={messages} />;
 }

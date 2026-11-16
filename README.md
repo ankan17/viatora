@@ -7,7 +7,7 @@ Plan a trip together by chatting. See `AGENTS.md` for setup and conventions, and
 ```sh
 pnpm install
 pnpm db:start   # local Supabase (Docker)
-cp .env.example .env.local   # fill from `supabase status`
+cp .env.example .env.local   # fill from `supabase status`; add ANTHROPIC_API_KEY for chat
 pnpm dev        # http://localhost:3100
 ```
 

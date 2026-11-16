@@ -1,13 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createTrip, signInNewUser } from "./mail";
-
-/** The full itinerary: the side panel on desktop, the full sheet on phone. */
-async function openItinerary(page: Page, isPhone: boolean) {
-  if (!isPhone) return page.getByRole("complementary", { name: "Itinerary" });
-  await page.getByRole("button", { name: /Show itinerary/ }).click();
-  await page.getByRole("button", { name: "Open full itinerary" }).click();
-  return page.getByRole("dialog", { name: "Full itinerary" });
-}
+import { createTrip, openItinerary, signInNewUser } from "./mail";
 
 const toast = (page: Page) => page.getByRole("status");
 

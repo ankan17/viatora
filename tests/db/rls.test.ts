@@ -155,6 +155,51 @@ describe("places", () => {
   });
 });
 
+describe("messages", () => {
+  const text = (t: string) => [{ type: "text", text: t }];
+
+  it("editors post as themselves, and replies are stored with their session", async () => {
+    const { data: mine, error } = await owner.client.from("messages").insert({ trip_id: tripId, role: "user", parts: text("Add ramen") }).select("id, author_id").single();
+    expect(error).toBeNull();
+    expect(mine?.author_id).toBe(owner.id);
+    const { error: reply } = await owner.client.from("messages").insert({ trip_id: tripId, role: "assistant", parts: text("Added.") });
+    expect(reply).toBeNull();
+
+    const { error: forged } = await owner.client.from("messages").insert({ trip_id: tripId, role: "user", author_id: stranger.id, parts: text("Not me") });
+    expect(forged?.code).toBe("42501");
+  });
+
+  it("are a record: nobody edits or deletes them", async () => {
+    const { data: all } = await owner.client.from("messages").select("id").eq("trip_id", tripId);
+    expect(all).toHaveLength(2);
+    const { data: edited } = await owner.client.from("messages").update({ parts: [] }).eq("trip_id", tripId).select("id");
+    expect(edited ?? []).toEqual([]);
+    const { data: removed } = await owner.client.from("messages").delete().eq("trip_id", tripId).select("id");
+    expect(removed ?? []).toEqual([]);
+    const { count } = await admin.from("messages").select("*", { count: "exact", head: true }).eq("trip_id", tripId);
+    expect(count).toBe(2);
+  });
+
+  it("viewers read the chat but cannot post; strangers do neither", async () => {
+    const viewer = await newUser();
+    await owner.client.from("trip_members").insert({ trip_id: tripId, user_id: viewer.id, role: "viewer" });
+    const { data: seen } = await viewer.client.from("messages").select("id").eq("trip_id", tripId);
+    expect(seen).toHaveLength(2);
+    const { error: viewerPost } = await viewer.client.from("messages").insert({ trip_id: tripId, role: "user", parts: text("Hello") });
+    expect(viewerPost?.code).toBe("42501");
+
+    const { data: hidden } = await stranger.client.from("messages").select("id").eq("trip_id", tripId);
+    expect(hidden).toEqual([]);
+    const { error: strangerPost } = await stranger.client.from("messages").insert({ trip_id: tripId, role: "user", parts: text("Hello") });
+    expect(strangerPost?.code).toBe("42501");
+  });
+
+  it("can only point at a change batch that exists", async () => {
+    const { error } = await owner.client.from("messages").insert({ trip_id: tripId, role: "assistant", parts: text("Done."), change_batch_id: randomUUID() });
+    expect(error?.code).toBe("23503");
+  });
+});
+
 describe("cleanup", () => {
   it("deleting a trip removes everything in it", async () => {
     const id = await newTrip(owner.client, 2);

@@ -20,6 +20,8 @@ type TripState = {
   dismissToast: () => void;
   undoLast: () => void;
   recentId: string | null;
+  /** Mark an item as just changed, as an edit from chat does. */
+  flash: (id: string) => void;
   editor: EditorState;
   setEditor: (s: EditorState) => void;
 };
@@ -95,6 +97,7 @@ export function TripProvider({ itinerary, children }: { itinerary: Itinerary; ch
       dismissToast: () => setToast(null),
       undoLast,
       recentId,
+      flash: setRecentId,
       editor,
       setEditor,
     }),

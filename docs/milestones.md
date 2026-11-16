@@ -39,7 +39,26 @@ Decisions made along the way:
 - Packing, Bookings and Budget tabs are placeholders until milestone 5.
 - The selected day isn't kept in the URL yet; reloading returns to Day 1.
 
-## 3. Chat that edits
+## 3. Chat that edits — built, not yet run against the real model
+
+- [x] Chat beside the itinerary (under the pinned bar on phone): messages, a streaming reply, Stop, suggestions to start from
+- [x] Agent on the server (Claude Opus 5.5 through the Anthropic SDK; the key never reaches the browser). Each turn it gets the earlier conversation and a fresh snapshot of the trip: details, profile, every day, ideas, and the latest changes, including ones made by hand or undone
+- [x] Edit tools that wrap the ops from milestone 2: add, update, remove and reorder items; add, remove and move days; set a day's city; trip details; trip profile
+- [x] Change cards: every reply that edits lists what it changed, with one Undo for all of it
+- [x] Trip profile (travellers, pace, interests, dietary, accessibility, preferences) saved from chat and sent with every turn
+- [x] Messages stored per trip; the conversation is there after a reload
+- [x] Tests: unit 36, database 38, end-to-end 24 (phone and desktop), 94 screenshots. Chat tests run against a scripted stand-in for the model
+- [ ] A real conversation with the model (needs `ANTHROPIC_API_KEY`): the prompt, the tool descriptions and effort level are untuned until then
+
+Decisions made along the way:
+- The model names days by number and items by id. Day numbers are looked up at the moment each tool runs, so a turn that adds or removes days keeps working.
+- Earlier turns are sent as words only. Tool calls are not replayed: the snapshot already shows what they did, and it also shows edits made by hand.
+- Edits apply at once, without asking first. The card and its Undo are the way back.
+- Replies are plain text. Rendering Markdown can wait until replies need it.
+- One model call runs at a time and tools run in order, because positions and day numbers depend on the edits before.
+- Stopping a reply keeps what had arrived, and any edits already made keep their card.
+- If the model declines a request for policy reasons, the API retries on its default fallback model (server-side fallback, a beta feature).
+- No daily message cap yet; only people who can edit a trip can chat on it. The cap belongs with launch prep.
 ## 4. Lookups
 ## 5. Lists
 ## 6. Launch prep
