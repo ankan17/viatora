@@ -1,0 +1,32 @@
+name: Set up
+description: Installs dependencies and starts the local Supabase stack the tests run against.
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        cache: pnpm
+
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+
+    # Only what the app and tests use: Postgres, auth, the REST API and the mail catcher.
+    - name: Start Supabase
+      run: pnpm exec supabase start --exclude studio,imgproxy,realtime,storage-api,edge-runtime,logflare,vector,supavisor
+      shell: bash
+
+    # The keys belong to the throwaway local stack; nothing here is a secret.
+    - name: Write .env.local
+      run: |
+        eval "$(pnpm exec supabase status --output env 2>/dev/null)"
+        cat > .env.local <<ENV
+        NEXT_PUBLIC_SUPABASE_URL=$API_URL
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY
+        SUPABASE_SECRET_KEY=$SECRET_KEY
+        MAILPIT_URL=$MAILPIT_URL
+        ENV
+      shell: bash
