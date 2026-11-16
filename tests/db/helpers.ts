@@ -15,7 +15,7 @@ export const admin = createClient<Database>(url, secret, opts);
 export const anon = (): Client => createClient<Database>(url, key, opts);
 
 /** A fresh confirmed user, signed in. */
-export async function newUser(): Promise<{ id: string; client: Client }> {
+export async function newUser(): Promise<{ id: string; email: string; client: Client }> {
   const email = `test-${randomUUID()}@example.test`;
   const password = randomUUID();
   const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
@@ -23,7 +23,7 @@ export async function newUser(): Promise<{ id: string; client: Client }> {
   const client = anon();
   const { error: signInError } = await client.auth.signInWithPassword({ email, password });
   if (signInError) throw signInError;
-  return { id: data.user.id, client };
+  return { id: data.user.id, email, client };
 }
 
 export type Batch = { id: string; actor?: "user" | "agent"; summary?: string };

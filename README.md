@@ -10,3 +10,5 @@ pnpm db:start   # local Supabase (Docker)
 cp .env.example .env.local   # fill from `supabase status`
 pnpm dev        # http://localhost:3100
 ```
+
+Tests: `pnpm check` (types, lint, unit, database), `pnpm test:e2e` and `pnpm test:visual` (screenshots; needs Docker). CI runs them all on every pull request.

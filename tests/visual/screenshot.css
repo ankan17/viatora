@@ -1,0 +1,4 @@
+/* Applied while a screenshot is taken. Hides the Next.js dev badge, which the production build doesn't have. */
+nextjs-portal {
+  display: none !important;
+}

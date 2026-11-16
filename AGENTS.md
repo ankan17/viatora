@@ -17,7 +17,9 @@ Chat-based trip planner. The itinerary in Postgres is the source of truth; the c
 - `pnpm db:start` — local Supabase (Docker). Ports are 554xx because another project uses the 543xx defaults. Studio: http://127.0.0.1:55423, Mailpit (sign-in emails): http://127.0.0.1:55424.
 - `pnpm dev` — app on http://localhost:3100 (3000 is taken on this machine; Supabase `site_url` matches 3100).
 - `pnpm check` — typecheck, lint, unit tests, database (RLS) tests. `pnpm test:e2e` — Playwright, starts the dev server itself.
-- One test: `pnpm test src/lib/dates.test.ts` (unit, `src/**/*.test.ts`), `pnpm test:db tests/db/rls.test.ts -t "name"` (needs `pnpm db:start`), `pnpm test:e2e tests/e2e/itinerary.spec.ts --project <name>` (projects in `playwright.config.ts`).
+- `pnpm test:visual` — screenshot tests (`tests/visual/`): every screen and dialog, phone and desktop, light and dark, compared with the images in `tests/visual/screenshots/`. The browser runs in Playwright's Docker image so the pictures match CI; the app and Supabase stay on this machine. After an intended change to the look, run `pnpm test:visual --update-snapshots`, look at the changed images, and commit them. Add a `shot()` for each new screen, dialog or state.
+- CI (`.github/workflows/ci.yml`) runs all of the above on every pull request and on `main`, against the production build. A failed run uploads the Playwright report, which shows expected, actual and difference for each screenshot.
+- One test: `pnpm test src/lib/dates.test.ts` (unit, `src/**/*.test.ts`), `pnpm test:db tests/db/rls.test.ts -t "name"` (needs `pnpm db:start`), `pnpm test:e2e tests/e2e/itinerary.spec.ts --project <name>` (projects in `playwright.config.ts`); `pnpm test:visual -g "sign-in" --project phone`.
 
 ## How it fits together
 

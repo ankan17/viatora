@@ -30,6 +30,7 @@ Decisions made along the way:
 - [x] Item editor (what, kind, day, part of day or exact time, status, cost, notes; earlier/later; remove), day settings, trip details, ideas backlog with "add to a day"
 - [x] Undo toast after every edit; the changed item is highlighted for a few seconds
 - [x] Tests: unit 17, database 34, end-to-end 14 (phone and desktop)
+- [x] Visual tests: 86 screenshots of every screen and dialog (phone and desktop, light and dark), and CI on GitHub for all the suites
 
 Decisions made along the way:
 - Removing a day moves its items to ideas (and resets planned items to idea; booked stays booked) rather than deleting them.

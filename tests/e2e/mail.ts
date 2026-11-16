@@ -23,9 +23,8 @@ export async function latestSignInEmail(email: string, timeoutMs = 15_000): Prom
 }
 
 
-/** Signs a brand-new user in with the emailed code. */
-export async function signInNewUser(page: Page): Promise<string> {
-  const email = `e2e-${randomUUID().slice(0, 8)}@example.test`;
+/** Signs in with the emailed code. The account is created if `email` is new. */
+export async function signIn(page: Page, email: string) {
   await page.goto("/sign-in");
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Email me a sign-in link" }).click();
@@ -33,6 +32,12 @@ export async function signInNewUser(page: Page): Promise<string> {
   await page.getByLabel("6-digit code").fill(code);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/trips$/);
+}
+
+/** Signs a brand-new user in with the emailed code. */
+export async function signInNewUser(page: Page): Promise<string> {
+  const email = `e2e-${randomUUID().slice(0, 8)}@example.test`;
+  await signIn(page, email);
   return email;
 }
 
