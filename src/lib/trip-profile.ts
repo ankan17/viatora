@@ -21,8 +21,17 @@ export const tripProfileSchema = z.object({
 
 export type TripProfile = z.infer<typeof tripProfileSchema>;
 
-/** Parse a stored profile, dropping anything invalid instead of failing the page. */
+/**
+ * Parse a stored profile. A field that doesn't fit the schema is dropped on its
+ * own, so one bad value neither fails the page nor wipes the rest on the next save.
+ */
 export function readTripProfile(value: unknown): TripProfile {
-  const parsed = tripProfileSchema.safeParse(value ?? {});
-  return parsed.success ? parsed.data : tripProfileSchema.parse({});
+  const whole = tripProfileSchema.safeParse(value ?? {});
+  if (whole.success) return whole.data;
+  const stored = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  const kept: Record<string, unknown> = {};
+  for (const [key, field] of Object.entries(tripProfileSchema.shape)) {
+    if (stored[key] !== undefined && field.safeParse(stored[key]).success) kept[key] = stored[key];
+  }
+  return tripProfileSchema.parse(kept);
 }

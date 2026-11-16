@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
-import { admin, anon, newTrip, newUser, type Client } from "./helpers";
+import { admin, anon, inBatch, newTrip, newUser, type Client } from "./helpers";
 
 let owner: { id: string; client: Client };
 let stranger: { id: string; client: Client };
@@ -157,45 +157,63 @@ describe("places", () => {
 
 describe("messages", () => {
   const text = (t: string) => [{ type: "text", text: t }];
+  const post = (client: Client, row: Record<string, unknown> = {}) =>
+    client.from("messages").insert({ trip_id: chatTrip, role: "user", parts: text("Add ramen"), ...row }).select("id, author_id").single();
+  let chatTrip: string;
 
-  it("editors post as themselves, and replies are stored with their session", async () => {
-    const { data: mine, error } = await owner.client.from("messages").insert({ trip_id: tripId, role: "user", parts: text("Add ramen") }).select("id, author_id").single();
+  beforeAll(async () => {
+    chatTrip = await newTrip(owner.client, 1);
+    // What a turn leaves behind: the traveller's words, and a reply stored by the server.
+    await post(owner.client);
+    await admin.from("messages").insert({ trip_id: chatTrip, author_id: owner.id, role: "assistant", parts: text("Added.") });
+  });
+
+  it("editors post their own words", async () => {
+    const { data, error } = await post(owner.client);
     expect(error).toBeNull();
-    expect(mine?.author_id).toBe(owner.id);
-    const { error: reply } = await owner.client.from("messages").insert({ trip_id: tripId, role: "assistant", parts: text("Added.") });
-    expect(reply).toBeNull();
+    expect(data?.author_id).toBe(owner.id);
+    expect((await post(owner.client, { author_id: stranger.id })).error?.code).toBe("42501");
+  });
 
-    const { error: forged } = await owner.client.from("messages").insert({ trip_id: tripId, role: "user", author_id: stranger.id, parts: text("Not me") });
-    expect(forged?.code).toBe("42501");
+  it("only the server writes replies and change cards", async () => {
+    expect((await post(owner.client, { role: "assistant" })).error?.code).toBe("42501");
+    // A card on a traveller's message would let its Undo point at any batch.
+    const batch = randomUUID();
+    await (await inBatch(owner.client, { id: batch, summary: "Renamed" })).from("trips").update({ name: "Renamed" }).eq("id", chatTrip);
+    expect((await post(owner.client, { change_batch_id: batch })).error?.code).toBe("42501");
+    const { error } = await admin.from("messages").insert({ trip_id: chatTrip, author_id: owner.id, role: "assistant", parts: text("Renamed it."), change_batch_id: batch });
+    expect(error).toBeNull();
+  });
+
+  it("have a size, because earlier turns are sent to the model again", async () => {
+    expect((await post(owner.client, { parts: text("x".repeat(8000)) })).error).toBeNull();
+    expect((await post(owner.client, { parts: text("x".repeat(9000)) })).error?.code).toBe("23514");
   });
 
   it("are a record: nobody edits or deletes them", async () => {
-    const { data: all } = await owner.client.from("messages").select("id").eq("trip_id", tripId);
-    expect(all).toHaveLength(2);
-    const { data: edited } = await owner.client.from("messages").update({ parts: [] }).eq("trip_id", tripId).select("id");
+    const { data: mine } = await post(owner.client);
+    const { data: edited } = await owner.client.from("messages").update({ parts: [] }).eq("id", mine!.id).select("id");
     expect(edited ?? []).toEqual([]);
-    const { data: removed } = await owner.client.from("messages").delete().eq("trip_id", tripId).select("id");
+    const { data: removed } = await owner.client.from("messages").delete().eq("id", mine!.id).select("id");
     expect(removed ?? []).toEqual([]);
-    const { count } = await admin.from("messages").select("*", { count: "exact", head: true }).eq("trip_id", tripId);
-    expect(count).toBe(2);
+    const { data: still } = await admin.from("messages").select("parts").eq("id", mine!.id).single();
+    expect(still?.parts).toEqual(text("Add ramen"));
   });
 
   it("viewers read the chat but cannot post; strangers do neither", async () => {
     const viewer = await newUser();
-    await owner.client.from("trip_members").insert({ trip_id: tripId, user_id: viewer.id, role: "viewer" });
-    const { data: seen } = await viewer.client.from("messages").select("id").eq("trip_id", tripId);
-    expect(seen).toHaveLength(2);
-    const { error: viewerPost } = await viewer.client.from("messages").insert({ trip_id: tripId, role: "user", parts: text("Hello") });
-    expect(viewerPost?.code).toBe("42501");
+    await owner.client.from("trip_members").insert({ trip_id: chatTrip, user_id: viewer.id, role: "viewer" });
+    const { data: seen } = await viewer.client.from("messages").select("role").eq("trip_id", chatTrip);
+    expect(seen?.map((m) => m.role)).toEqual(expect.arrayContaining(["user", "assistant"]));
+    expect((await post(viewer.client)).error?.code).toBe("42501");
 
-    const { data: hidden } = await stranger.client.from("messages").select("id").eq("trip_id", tripId);
+    const { data: hidden } = await stranger.client.from("messages").select("id").eq("trip_id", chatTrip);
     expect(hidden).toEqual([]);
-    const { error: strangerPost } = await stranger.client.from("messages").insert({ trip_id: tripId, role: "user", parts: text("Hello") });
-    expect(strangerPost?.code).toBe("42501");
+    expect((await post(stranger.client)).error?.code).toBe("42501");
   });
 
   it("can only point at a change batch that exists", async () => {
-    const { error } = await owner.client.from("messages").insert({ trip_id: tripId, role: "assistant", parts: text("Done."), change_batch_id: randomUUID() });
+    const { error } = await admin.from("messages").insert({ trip_id: chatTrip, author_id: owner.id, role: "assistant", parts: text("Done."), change_batch_id: randomUUID() });
     expect(error?.code).toBe("23503");
   });
 });

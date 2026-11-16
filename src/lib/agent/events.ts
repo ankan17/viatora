@@ -7,6 +7,6 @@ export type TurnEvent =
   | { type: "text"; delta: string }
   /** An edit was applied. `itemId` is the item or day it touched, when there is one. */
   | { type: "edit"; summary: string; itemId?: string }
-  /** The reply as stored, or null when there was nothing to store. Always the last event. */
+  /** The reply as stored, or null when there was nothing to store. Always sent, and always last. */
   | { type: "done"; message: ChatMessage | null }
   | { type: "error"; message: string };
