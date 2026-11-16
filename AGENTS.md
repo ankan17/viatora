@@ -8,7 +8,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-# Travel Planner
+# Viatora — Travel Planner AI
 
 Chat-based trip planner. The itinerary in Postgres is the source of truth; the chat agent (milestone 3) only edits it through tool calls. Plan: see `docs/milestones.md`.
 
@@ -17,6 +17,14 @@ Chat-based trip planner. The itinerary in Postgres is the source of truth; the c
 - `pnpm db:start` — local Supabase (Docker). Ports are 554xx because another project uses the 543xx defaults. Studio: http://127.0.0.1:55423, Mailpit (sign-in emails): http://127.0.0.1:55424.
 - `pnpm dev` — app on http://localhost:3100 (3000 is taken on this machine; Supabase `site_url` matches 3100).
 - `pnpm check` — typecheck, lint, unit tests, database (RLS) tests. `pnpm test:e2e` — Playwright, starts the dev server itself.
+- One test: `pnpm test src/lib/dates.test.ts` (unit, `src/**/*.test.ts`), `pnpm test:db tests/db/rls.test.ts -t "name"` (needs `pnpm db:start`), `pnpm test:e2e tests/e2e/itinerary.spec.ts --project <name>` (projects in `playwright.config.ts`).
+
+## How it fits together
+
+- Trip page (`src/app/trips/[tripId]/page.tsx`) loads the whole trip once with `loadItinerary` (`src/lib/itinerary/snapshot.ts`) and hands it to `TripScreen`.
+- Client components share state through `TripProvider` (`src/components/itinerary/trip-context.tsx`); its `run(op, input)` calls the `edit` / `undo` server actions in `src/app/trips/[tripId]/actions.ts` and shows the undo toast.
+- Server actions dispatch to the ops in `src/lib/itinerary/ops.ts`. Each op validates with zod, writes through a client tagged with the batch headers, and returns a summary. Database triggers record the writes in `change_batches` / `change_log`; `undo_batch` reverts one batch.
+- Milestone 3's chat agent calls the same ops as tools (actor `agent`), so UI edits and agent edits share one path and one undo history.
 
 ## Conventions
 
