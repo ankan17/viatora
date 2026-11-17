@@ -137,21 +137,32 @@ describe("change_log", () => {
 describe("places", () => {
   it("store only the ID for Google, and never overwrite an existing place", async () => {
     const gid = `g-${randomUUID()}`;
-    const { data: id1 } = await owner.client.rpc("ensure_place", { p_provider: "google", p_provider_place_id: gid, p_name: "Leak", p_lat: 1, p_lng: 2 });
+    const { data: id1 } = await admin.rpc("ensure_place", { p_provider: "google", p_provider_place_id: gid, p_name: "Leak", p_lat: 1, p_lng: 2 });
     const { data: row } = await owner.client.from("places").select("name, lat, lng").eq("id", id1!).single();
     expect(row).toEqual({ name: null, lat: null, lng: null });
 
-    const oid = `o-${randomUUID()}`;
-    const { data: a } = await owner.client.rpc("ensure_place", { p_provider: "overture", p_provider_place_id: oid, p_name: "Real name", p_lat: 38.7, p_lng: -9.1 });
-    const { data: b } = await stranger.client.rpc("ensure_place", { p_provider: "overture", p_provider_place_id: oid, p_name: "Vandalised" });
+    const oid = `N${Date.now()}`;
+    const { data: a } = await admin.rpc("ensure_place", { p_provider: "osm", p_provider_place_id: oid, p_name: "Real name", p_lat: 38.7, p_lng: -9.1 });
+    const { data: b } = await admin.rpc("ensure_place", { p_provider: "osm", p_provider_place_id: oid, p_name: "Vandalised" });
     expect(b).toBe(a);
     const { data: kept } = await owner.client.from("places").select("name").eq("id", a!).single();
     expect(kept?.name).toBe("Real name");
   });
 
-  it("cannot be inserted directly", async () => {
-    const { error } = await owner.client.from("places").insert({ provider: "custom", provider_place_id: randomUUID(), name: "x" });
-    expect(error?.code).toBe("42501");
+  it("can be read by anyone signed in, but only the server writes them", async () => {
+    const { error: insert } = await owner.client.from("places").insert({ provider: "custom", provider_place_id: randomUUID(), name: "x" });
+    expect(insert?.code).toBe("42501");
+    // A place's name and location are shared across trips, so a person can't set them.
+    const { error: rpc } = await owner.client.rpc("ensure_place", { p_provider: "osm", p_provider_place_id: `N${randomUUID()}`, p_name: "Fake", p_lat: 1, p_lng: 2 });
+    expect(rpc).not.toBeNull();
+    const { error: anonRpc } = await anon().rpc("ensure_place", { p_provider: "osm", p_provider_place_id: "N1", p_name: "Fake" });
+    expect(anonRpc).not.toBeNull();
+  });
+
+  it("can be pinned to an item by an editor", async () => {
+    const { data: place } = await admin.rpc("ensure_place", { p_provider: "osm", p_provider_place_id: `N${randomUUID()}`, p_name: "Shrine", p_lat: 35, p_lng: 135 });
+    const { error } = await owner.client.from("items").insert({ trip_id: tripId, day_id: dayId, title: "Visit", place_id: place });
+    expect(error).toBeNull();
   });
 });
 

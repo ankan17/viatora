@@ -28,7 +28,15 @@ export default defineConfig({
       // must have been started with `pnpm dev:test`, or it will call the real model.
       reuseExistingServer: !ci,
       timeout: 120_000,
-      env: { ANTHROPIC_BASE_URL: FAKE_MODEL, ANTHROPIC_API_KEY: "fake-key-for-tests" },
+      env: {
+        ANTHROPIC_BASE_URL: FAKE_MODEL,
+        ANTHROPIC_API_KEY: "fake-key-for-tests",
+        // The lookup services are answered by the same stand-in.
+        PHOTON_URL: FAKE_MODEL,
+        OPEN_METEO_GEOCODING_URL: FAKE_MODEL,
+        OPEN_METEO_FORECAST_URL: FAKE_MODEL,
+        OPEN_METEO_ARCHIVE_URL: FAKE_MODEL,
+      },
     },
   ],
 });
