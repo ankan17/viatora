@@ -15,6 +15,13 @@ export type DayCheck = {
 
 const minutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 
+/** An end at or before the start means the plan runs past midnight. */
+const endMinutes = (item: Item) => {
+  const start = minutes(item.start_time!);
+  const end = minutes(item.end_time!);
+  return end > start ? end : end + 24 * 60;
+};
+
 /** Where you sleep and notes to self sit alongside the day rather than in it. */
 const occupiesTime = (item: Item) => item.start_time !== null && item.type !== "stay" && item.type !== "note";
 
@@ -26,7 +33,7 @@ export function checkDay(items: Item[]): DayCheck[] {
       const start = hhmm(second.start_time)!;
       if (second.start_time === first.start_time) {
         checks.push({ kind: "same-start", itemIds: [first.id, second.id], message: `${first.title} and ${second.title} both start at ${start}.` });
-      } else if (first.end_time && minutes(second.start_time!) < minutes(first.end_time)) {
+      } else if (first.end_time && minutes(second.start_time!) < endMinutes(first)) {
         checks.push({
           kind: "overlap",
           itemIds: [first.id, second.id],

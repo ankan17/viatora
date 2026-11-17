@@ -4,7 +4,7 @@ import type { Coordinates } from "./places";
 export type Weather =
   | { kind: "forecast"; date: string; high: number; low: number; rainChance: number | null; sky: string }
   /** Too far ahead (or in the past) for a forecast: what the same week was like in recent years. */
-  | { kind: "typical"; date: string; high: number; low: number; wetDaysInTen: number; years: string };
+  | { kind: "typical"; date: string; high: number; low: number; wetDaysInTen: number | null; years: string; inPast: boolean };
 
 type Daily = {
   time?: string[];
@@ -57,21 +57,29 @@ export async function getWeather(at: Coordinates, date: string, today: Date = ne
     return { kind: "forecast", date, high: Math.round(high), low: Math.round(low), rainChance: daily?.precipitation_probability_max?.[0] ?? null, sky: sky(daily?.weather_code?.[0]) };
   }
 
-  // The week around the same date in each of the last five full years.
-  const lastYear = today.getUTCFullYear() - 1;
-  const years = Array.from({ length: 5 }, (_, i) => lastYear - i);
+  // The week around the same date in each of five recent years, leaving out any
+  // whose week is too recent for the archive to have filled in.
   const [, month, day] = date.split("-").map(Number);
-  const weeks = await Promise.all(
-    years.map((year) => {
-      const centre = Date.UTC(year, month - 1, day);
-      return getJson<{ daily?: Daily }>(endpoints.archive(), "/v1/archive", {
+  const window = (year: number) => {
+    const centre = Date.UTC(year, month - 1, day);
+    return { start: iso(new Date(centre - 3 * DAY_MS)), end: iso(new Date(centre + 3 * DAY_MS)), endMs: centre + 3 * DAY_MS };
+  };
+  const settled = Date.parse(`${iso(today)}T00:00:00Z`) - 10 * DAY_MS;
+  const years = Array.from({ length: 7 }, (_, i) => today.getUTCFullYear() - i)
+    .filter((year) => window(year).endMs <= settled)
+    .slice(0, 5);
+  const results = await Promise.allSettled(
+    years.map((year) =>
+      getJson<{ daily?: Daily }>(endpoints.archive(), "/v1/archive", {
         ...where,
-        start_date: iso(new Date(centre - 3 * DAY_MS)),
-        end_date: iso(new Date(centre + 3 * DAY_MS)),
+        start_date: window(year).start,
+        end_date: window(year).end,
         daily: "temperature_2m_max,temperature_2m_min,precipitation_sum",
-      });
-    }),
+      }),
+    ),
   );
+  const weeks = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  if (weeks.length === 0 && results.length > 0) throw new LookupError("The weather record isn't available right now.");
   const all = (pick: (d: Daily) => (number | null)[] | undefined) => weeks.flatMap((w) => (w.daily ? (pick(w.daily) ?? []) : [])).filter((v): v is number => v != null);
   const highs = all((d) => d.temperature_2m_max);
   const lows = all((d) => d.temperature_2m_min);
@@ -84,8 +92,9 @@ export async function getWeather(at: Coordinates, date: string, today: Date = ne
     high: mean(highs),
     low: mean(lows),
     // A day counts as wet from 1 mm of rain.
-    wetDaysInTen: rain.length ? Math.round((rain.filter((mm) => mm >= 1).length / rain.length) * 10) : 0,
+    wetDaysInTen: rain.length ? Math.round((rain.filter((mm) => mm >= 1).length / rain.length) * 10) : null,
     years: `${years.at(-1)} to ${years[0]}`,
+    inPast: daysAway < 0,
   };
 }
 
@@ -94,5 +103,7 @@ export function describeWeather(w: Weather, place: string, dayLabel: string): st
     const rain = w.rainChance == null ? "" : `, ${w.rainChance}% chance of rain`;
     return `Forecast for ${place} on ${dayLabel}: ${w.sky}, high ${w.high}°C, low ${w.low}°C${rain}. Source: Open-Meteo.`;
   }
-  return `Too far from ${dayLabel} for a forecast. In ${place} that week is typically ${w.high}°C by day and ${w.low}°C at night, with rain on about ${w.wetDaysInTen} days in 10 (${w.years}). Source: Open-Meteo historical data.`;
+  const rain = w.wetDaysInTen == null ? "" : `, with rain on about ${w.wetDaysInTen} days in 10`;
+  const lead = w.inPast ? `That day has passed. In ${place} that week was typically` : `Too far from ${dayLabel} for a forecast. In ${place} that week is typically`;
+  return `${lead} ${w.high}°C by day and ${w.low}°C at night${rain} (${w.years}). Source: Open-Meteo historical data.`;
 }

@@ -59,7 +59,7 @@ Decisions made along the way:
 - One model call runs at a time and tools run in order, because positions and day numbers depend on the edits before.
 - Stopping a reply keeps what had arrived. Edits already made keep their card; edits the model had asked for but not yet made are dropped.
 - A turn that can't finish says so in the reply: the step limit (12 model calls), a reply cut off for length, or nothing to say.
-- Replies are stored with the Supabase secret key, the only use of it in the app. Before this, any editor could have inserted a fake reply or change card straight into the table.
+- Replies are stored with the Supabase secret key (milestone 4 also uses it to store searched places). Before this, any editor could have inserted a fake reply or change card straight into the table.
 - If the model declines a request for policy reasons, the API retries on its default fallback model (server-side fallback, a beta feature).
 - Only people who can edit a trip can chat on it. The daily cap is a cost guard, not a plan limit; plans belong with launch prep.
 
@@ -82,6 +82,7 @@ Decisions made along the way:
 - Open-Meteo's free tier is for non-commercial use. A launch that charges (milestone 6) needs its paid plan or another source. Photon's public instance is fair-use only; use your own instance before launch.
 - `ensure_place` is now server-only. Place rows are shared across trips, so a person must not be able to set a place's name or location.
 - Directions, stays and flights, rail times and web search are not built; travel time is an estimate and the prompt says so.
+- Lookups never end a turn: a failed or slow service comes back to the model as text. At most 8 lookups per reply, and place names from OpenStreetMap are tidied and cut before they reach the model or the database.
 - Overlaps are checked only between items that have start times, and only when the earlier one has an end time (or both start together). Closed days and transfers need opening hours and real routes.
 ## 5. Lists
 ## 6. Launch prep

@@ -43,6 +43,14 @@ describe("checking a day's times", () => {
     ]);
   });
 
+  it("knows a plan that ends 'before' it starts runs past midnight", () => {
+    expect(checkDay([item("Late show", "22:00", "01:00"), item("Drinks", "23:00")]).map((c) => c.kind)).toEqual(["overlap"]);
+  });
+
+  it("doesn't flag a plan that ends exactly as the next begins", () => {
+    expect(checkDay([item("A", "10:00", "11:00"), item("B", "11:00", "12:00")])).toEqual([]);
+  });
+
   it("can't tell without an end time, so says nothing", () => {
     expect(checkDay([item("Shrine", "09:00"), item("Lunch", "09:30")])).toEqual([]);
   });

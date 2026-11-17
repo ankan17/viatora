@@ -199,7 +199,9 @@ test("a reply can be stopped, and what arrived is kept", async ({ page }) => {
 test("looks places and weather up, and pins an item to a real place", async ({ page }, info) => {
   const isPhone = info.project.name === "phone";
   await signInNewUser(page);
-  await createTrip(page, "Kyoto week", { destination: "Kyoto", startDate: "2027-04-05", days: 2 });
+  // Far enough ahead that there is never a forecast, whatever day the test runs.
+  const farAway = new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await createTrip(page, "Kyoto week", { destination: "Kyoto", startDate: farAway, days: 2 });
 
   await ask(page, "Find a ramen place for dinner");
   await expect(chat(page).getByText("Pinned Ichiran to Day 1.")).toBeVisible();

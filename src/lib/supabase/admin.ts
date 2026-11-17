@@ -5,7 +5,7 @@ import { supabaseUrl } from "@/lib/env";
 
 /**
  * A client that bypasses row level security. Only for writes that must not be
- * possible from a browser: today, storing the assistant's replies. Everything
+ * possible from a browser: storing the assistant's replies and the places a search finds. Everything
  * else goes through the signed-in user's client.
  */
 export function createAdminClient() {
