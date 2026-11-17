@@ -79,5 +79,46 @@ export async function seedPlannedTrip(db: Client): Promise<string> {
       )
       .select("id"),
   );
+
+  ok(await db.from("trips").update({ budget_total: 1500 }).eq("id", tripId).select("id"));
+  ok(
+    await db
+      .from("packing_items")
+      .insert(
+        [
+          { label: "Rain jacket", reason: "Showers are likely in the first week", category: "Clothes", quantity: 1, packed: true },
+          { label: "Walking shoes", reason: "Temple steps and long days on foot", category: "Clothes", quantity: 1, packed: false },
+          { label: "Passport", reason: "Needed for the flight and at the guesthouse", category: "Documents", quantity: 2, packed: false },
+          { label: "Cash for small shops", reason: "", category: null, quantity: 1, packed: false },
+        ].map((p, i) => ({ ...p, trip_id: tripId, position: i + 1 })),
+      )
+      .select("id"),
+  );
+  ok(
+    await db
+      .from("bookings")
+      .insert(
+        [
+          {
+            trip_id: tripId,
+            kind: "flight",
+            title: "Flight LHR to KIX",
+            provider_name: "Skyways",
+            confirmation_ref: "QX81ZT",
+            starts_at: "2027-04-04T11:20",
+            ends_at: "2027-04-05T07:05",
+            status: "confirmed",
+            cost_amount: 612,
+            cost_currency: "USD",
+            url: "https://example.com/trips/QX81ZT",
+            notes: "Window seats. Bags are included.",
+          },
+          { trip_id: tripId, kind: "activity", title: "Pottery workshop", starts_at: "2027-04-07T14:00", status: "pending" },
+        ],
+        { defaultToNull: false },
+      )
+      .select("id"),
+  );
+  ok(await db.from("ruled_out").insert({ trip_id: tripId, label: "Universal Studios", reason: "Too crowded" }).select("id"));
   return tripId;
 }

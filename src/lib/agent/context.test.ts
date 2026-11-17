@@ -52,6 +52,9 @@ const trip: Itinerary = {
     { id: "d2", number: 2, base_city: null, notes: "", items: [] },
   ],
   ideas: [item({ id: "i-tea", title: "Tea ceremony", day_id: null, status: "idea" })],
+  packing: [],
+  bookings: [],
+  ruledOut: [],
   canEdit: true,
 };
 
@@ -115,5 +118,57 @@ describe("the turn's context", () => {
   });
   it("leaves the day out when none is in view", () => {
     expect(turnContext(trip, [], null)).not.toContain("looking_at");
+  });
+});
+
+describe("lists in the snapshot", () => {
+  const withLists: Itinerary = {
+    ...trip,
+    packing: [
+      { id: "p1", label: "Rain jacket", reason: "Rain forecast on day 2", category: "Clothes", quantity: 1, packed: false, position: 1 },
+      { id: "p2", label: "Passport", reason: "", category: null, quantity: 2, packed: true, position: 2 },
+    ],
+    bookings: [
+      {
+        id: "b1",
+        kind: "stay",
+        title: "Hotel Gion",
+        provider_name: "Booking site",
+        confirmation_ref: "SECRET-REF-9",
+        starts_at: "2027-04-05T15:00:00+00:00",
+        ends_at: "2027-04-08T00:00:00+00:00",
+        cost_amount: 540,
+        cost_currency: "USD",
+        status: "confirmed",
+        url: "https://example.com/private-link",
+        notes: "",
+      },
+    ],
+    ruledOut: [{ id: "o1", label: "Universal Studios", reason: "Too crowded" }],
+  };
+  const text = describeTrip(withLists);
+
+  it("lists packing with each reason and its id", () => {
+    expect(text).toContain("- Rain jacket (Clothes) because Rain forecast on day 2 [pack:p1]");
+    expect(text).toContain("- Passport (x2, packed) [pack:p2]");
+  });
+
+  it("describes bookings without the confirmation number or the link", () => {
+    expect(text).toContain(
+      "- Hotel Gion (stay, confirmed, 2027-04-05 15:00 to 2027-04-08, US$540, Booking site, has a confirmation number) [booking:b1]",
+    );
+    expect(text).not.toContain("SECRET-REF-9");
+    expect(text).not.toContain("private-link");
+  });
+
+  it("tells the model what the group has ruled out, and the spend", () => {
+    expect(text).toContain("Ruled out by the group. Don't suggest these again");
+    expect(text).toContain("- Universal Studios (Too crowded) [out:o1]");
+    expect(text).toContain("Planned US$580 of US$3,000; US$2,420 left.");
+  });
+
+  it("is plain when the lists are empty", () => {
+    expect(describeTrip(trip)).toContain("Packing list\n(empty)");
+    expect(describeTrip(trip)).not.toContain("Ruled out");
   });
 });

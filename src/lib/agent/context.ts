@@ -1,16 +1,42 @@
 import { dayDate, dayLabel, formatDay } from "@/lib/dates";
+import { stamp } from "@/lib/itinerary/format";
+import { budgetOf } from "@/lib/itinerary/budget";
 import { checkDay } from "@/lib/itinerary/checks";
 import { formatCost, groupDay, timeRange } from "@/lib/itinerary/group";
-import { slotLabel, typeLabel, type Item, type Itinerary } from "@/lib/itinerary/types";
+import { bookingKindLabel, slotLabel, typeLabel, type Booking, type Item, type Itinerary, type PackingItem } from "@/lib/itinerary/types";
 import { readTripProfile, type TripProfile } from "@/lib/trip-profile";
 
-export type RecentChange = { actor: "user" | "agent"; summary: string; undone: boolean };
+export type RecentChange = {
+  actor: "user" | "agent";
+  summary: string;
+  undone: boolean;
+};
 
 function itemLine(item: Item): string {
   const when = timeRange(item) ?? (item.slot ? slotLabel(item.slot).toLowerCase() : null);
   const facts = [typeLabel(item.type).toLowerCase(), when, item.status, formatCost(item.cost_amount, item.cost_currency), item.place?.name];
   const line = `- ${item.title} (${facts.filter(Boolean).join(", ")}) [item:${item.id}]`;
   return item.notes.trim() ? `${line}\n  notes: ${item.notes.trim().replace(/\s+/g, " ")}` : line;
+}
+
+function packingLine(p: PackingItem): string {
+  const facts = [p.category, p.quantity > 1 ? `x${p.quantity}` : null, p.packed ? "packed" : null].filter(Boolean).join(", ");
+  const why = p.reason.trim() ? ` because ${p.reason.trim().replace(/\s+/g, " ")}` : "";
+  return `- ${p.label}${facts ? ` (${facts})` : ""}${why} [pack:${p.id}]`;
+}
+
+/** Confirmation numbers and links stay out of the snapshot: the model has no use for them. */
+function bookingLine(b: Booking): string {
+  const when = [stamp(b.starts_at), b.ends_at ? `to ${stamp(b.ends_at)}` : null].filter(Boolean).join(" ");
+  const facts = [
+    bookingKindLabel(b.kind).toLowerCase(),
+    b.status,
+    when || null,
+    formatCost(b.cost_amount, b.cost_currency),
+    b.provider_name,
+    b.confirmation_ref ? "has a confirmation number" : null,
+  ];
+  return `- ${b.title} (${facts.filter(Boolean).join(", ")}) [booking:${b.id}]`;
 }
 
 function profileLines(p: TripProfile): string[] {
@@ -63,6 +89,33 @@ export function describeTrip(itinerary: Itinerary, recent: RecentChange[] = []):
 
   lines.push("", "Ideas (not on a day)");
   lines.push(...(ideas.length ? ideas.map(itemLine) : ["(none)"]));
+
+  const b = budgetOf(itinerary);
+  const spend = [
+    `On the days: ${formatCost(b.planned - b.bookings, b.currency) ?? "0"}`,
+    `bookings: ${formatCost(b.bookings, b.currency) ?? "0"}`,
+  ];
+  if (b.ideas) spend.push(`ideas not counted: ${formatCost(b.ideas, b.currency)}`);
+  for (const o of b.other) spend.push(`also ${formatCost(o.amount, o.currency)} (not converted)`);
+  lines.push("", "Spend", `${spend.join("; ")}.`);
+  if (b.left != null)
+    lines.push(
+      b.left >= 0
+        ? `Planned ${formatCost(b.planned, b.currency)} of ${budget}; ${formatCost(b.left, b.currency)} left.`
+        : `Planned ${formatCost(b.planned, b.currency)}, ${formatCost(-b.left, b.currency)} over the ${budget} budget.`,
+    );
+
+  lines.push("", "Bookings");
+  lines.push(...(itinerary.bookings.length ? itinerary.bookings.map(bookingLine) : ["(none)"]));
+
+  lines.push("", "Packing list");
+  lines.push(...(itinerary.packing.length ? itinerary.packing.map(packingLine) : ["(empty)"]));
+
+  if (itinerary.ruledOut.length) {
+    lines.push("", "Ruled out by the group. Don't suggest these again");
+    for (const r of itinerary.ruledOut)
+      lines.push(`- ${r.label}${r.reason.trim() ? ` (${r.reason.trim().replace(/\s+/g, " ")})` : ""} [out:${r.id}]`);
+  }
 
   if (recent.length) {
     lines.push("", "Latest changes, newest first");

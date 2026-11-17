@@ -84,8 +84,24 @@ test("a planned trip and its dialogs", async ({ page }, info) => {
   await shot(page, "day-empty");
 
   await it.getByRole("tab", { name: "Packing" }).click();
-  await expect(it.getByText(/Packing lists/)).toBeVisible();
+  await expect(it.getByText("1 of 4 packed")).toBeVisible();
   await shot(page, "tab-packing");
+  await it.getByRole("button", { name: "Walking shoes. Edit" }).click();
+  await expect(page.getByRole("dialog", { name: "Edit packing item" }).getByLabel("Why")).toHaveValue("Temple steps and long days on foot");
+  await shot(page, "packing-edit");
+  await closeDialog(page);
+
+  await it.getByRole("tab", { name: "Bookings" }).click();
+  await expect(it.getByText("QX81ZT")).toBeVisible();
+  await shot(page, "tab-bookings");
+  await it.getByRole("button", { name: "Edit Flight LHR to KIX" }).click();
+  await expect(page.getByRole("dialog", { name: "Edit booking" }).getByLabel("Confirmation number")).toHaveValue("QX81ZT");
+  await shot(page, "booking-edit");
+  await closeDialog(page);
+
+  await it.getByRole("tab", { name: "Budget" }).click();
+  await expect(it.getByRole("region", { name: "Totals" })).toContainText("US$836.50");
+  await shot(page, "tab-budget");
   await it.getByRole("tab", { name: "Itinerary" }).click();
   await it.getByRole("button", { name: "Day 1", exact: true }).click();
 

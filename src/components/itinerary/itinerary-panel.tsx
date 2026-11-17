@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/cn";
+import { BookingsTab } from "./bookings-tab";
+import { BudgetTab } from "./budget-tab";
+import { PackingTab } from "./packing-tab";
 import { DayChips } from "./day-chips";
 import { DayView, IdeasList } from "./day-view";
 import { useTrip } from "./trip-context";
@@ -13,12 +16,6 @@ const TABS = [
   { id: "budget", label: "Budget" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
-
-const LATER: Record<Exclude<Tab, "itinerary">, string> = {
-  packing: "Packing lists, with the reason for each thing, are coming soon.",
-  bookings: "Keep confirmations and links in one place. Coming soon.",
-  budget: "See what the trip costs as you plan. Coming soon.",
-};
 
 /** The full itinerary: tabs, day chips, the day, and the ideas backlog. */
 export function ItineraryPanel({ className }: { className?: string }) {
@@ -57,8 +54,12 @@ export function ItineraryPanel({ className }: { className?: string }) {
               <IdeasList />
             </div>
           </>
+        ) : tab === "packing" ? (
+          <PackingTab />
+        ) : tab === "bookings" ? (
+          <BookingsTab />
         ) : (
-          <p className="p-6 text-center text-body text-muted">{LATER[tab]}</p>
+          <BudgetTab />
         )}
       </div>
     </div>

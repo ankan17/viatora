@@ -41,11 +41,43 @@ const itemFields = {
   notes,
 };
 
+const packId = z.uuid().describe("The packing item's id, from [pack:…] in the snapshot.");
+const bookingId = z.uuid().describe("The booking's id, from [booking:…] in the snapshot or an add_booking result.");
+const local = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}(T([01]\d|2[0-3]):[0-5]\d)?$/)
+  .describe("Local date, YYYY-MM-DD, or local date and time, YYYY-MM-DDTHH:MM. No timezone.");
+const bookingFields = {
+  kind: z.enum(["stay", "flight", "rail", "activity", "car", "other"]),
+  title: z.string().trim().min(1).max(200).describe("What it is, e.g. 'Flight LHR to KIX' or 'Hotel Gion'."),
+  provider: z.string().trim().max(120).nullable().describe("The airline, hotel or company."),
+  confirmation_ref: z.string().trim().max(120).nullable().describe("Only a reference the traveller gave you. Never invent one."),
+  starts_at: local.nullable(),
+  ends_at: local.nullable(),
+  status: z.enum(["pending", "confirmed", "cancelled"]).describe("'confirmed' only when the traveller says it is."),
+  cost: cost.nullable().describe("For the whole booking. Only a figure the traveller gave."),
+  currency,
+  url: z.string().trim().max(2000).nullable().describe("A web address the traveller gave you. Never make one up."),
+  notes,
+};
+const packingFields = {
+  label: z.string().trim().min(1).max(120).describe("The thing to pack, e.g. 'Rain jacket'."),
+  reason: z.string().trim().max(300).describe("Why it's on the list, tied to this trip, e.g. 'Rain forecast on day 3'."),
+  category: z.string().trim().max(60).nullable().describe("A short group such as 'Clothes', 'Documents' or 'Tech'."),
+  quantity: z.number().int().min(1).max(99),
+};
+
 export const toolSchemas = {
   add_item: z.object(itemFields).partial().required({ title: true }),
-  update_item: z.object({ item_id: itemId, ...z.object(itemFields).partial().shape }),
+  update_item: z.object({
+    item_id: itemId,
+    ...z.object(itemFields).partial().shape,
+  }),
   remove_item: z.object({ item_id: itemId }),
-  reorder_item: z.object({ item_id: itemId, direction: z.enum(["earlier", "later"]) }),
+  reorder_item: z.object({
+    item_id: itemId,
+    direction: z.enum(["earlier", "later"]),
+  }),
   add_day: z.object({
     after_day: z
       .number()
@@ -56,7 +88,10 @@ export const toolSchemas = {
       .describe("Insert after this day number; 0 puts it first. Leave out to add at the end."),
   }),
   remove_day: z.object({ day: dayNumber }),
-  move_day: z.object({ day: dayNumber, to: dayNumber.describe("The position it should end up at.") }),
+  move_day: z.object({
+    day: dayNumber,
+    to: dayNumber.describe("The position it should end up at."),
+  }),
   set_day_city: z.object({
     day: dayNumber,
     city: z.string().trim().max(120).nullable().describe("Where they sleep that night, or null to clear it."),
@@ -73,7 +108,10 @@ export const toolSchemas = {
   }),
   update_profile: z.object({
     travellers: z
-      .object({ adults: z.number().int().min(1).max(30), child_ages: z.array(z.number().int().min(0).max(17)).max(20).optional() })
+      .object({
+        adults: z.number().int().min(1).max(30),
+        child_ages: z.array(z.number().int().min(0).max(17)).max(20).optional(),
+      })
       .nullable()
       .optional(),
     pace: z.enum(["relaxed", "balanced", "packed"]).nullable().optional(),
@@ -91,6 +129,30 @@ export const toolSchemas = {
       .optional()
       .describe("Saved preferences to drop, exactly as shown in the snapshot."),
   }),
+  add_packing_items: z.object({
+    items: z
+      .array(z.object(packingFields).partial().required({ label: true, reason: true }))
+      .min(1)
+      .max(30),
+  }),
+  update_packing_item: z.object({
+    pack_id: packId,
+    ...z.object({ ...packingFields, packed: z.boolean() }).partial().shape,
+  }),
+  remove_packing_items: z.object({ pack_ids: z.array(packId).min(1).max(50) }),
+  add_booking: z.object(bookingFields).partial().required({ kind: true, title: true }),
+  update_booking: z.object({
+    booking_id: bookingId,
+    ...z.object(bookingFields).partial().shape,
+  }),
+  remove_booking: z.object({ booking_id: bookingId }),
+  rule_out: z.object({
+    label: z.string().trim().min(1).max(200).describe("What the group doesn't want, e.g. 'Universal Studios' or 'night buses'."),
+    reason: z.string().trim().max(300).optional(),
+  }),
+  restore_ruled_out: z.object({
+    out_id: z.uuid().describe("From [out:…] in the snapshot."),
+  }),
 } as const;
 
 /** Read-only: these look something up and return text. They never change the trip. */
@@ -106,7 +168,9 @@ export const lookupSchemas = {
       .optional()
       .describe("Prefer places near the city where the group stays on this day. Leave out to search near the trip's destination."),
   }),
-  get_weather: z.object({ day: dayNumber.describe("The trip day to get the weather for. The trip needs dates.") }),
+  get_weather: z.object({
+    day: dayNumber.describe("The trip day to get the weather for. The trip needs dates."),
+  }),
   travel_time: z.object({
     from_item_id: itemId.describe("An item that has a place."),
     to_item_id: itemId.describe("Another item that has a place."),
@@ -139,6 +203,16 @@ const descriptions: Record<ToolName, string> = {
   update_trip: "Change the trip's name, destination, first day, currency or budget.",
   update_profile:
     "Save lasting facts about the group to the trip profile: who is travelling, pace, interests, dietary needs, accessibility needs, and free-form preferences.",
+  add_packing_items:
+    "Add things to the packing list, several in one call. Give each a reason tied to this trip (the weather, a plan, the group). Check the list first and don't repeat what's there.",
+  update_packing_item: "Change a packing item, or tick it off as packed. Only include the fields that change.",
+  remove_packing_items: "Remove things from the packing list.",
+  add_booking:
+    "Record a booking the traveller has told you about (a flight, a stay, a train, a tour). This only keeps the details; it never books anything. Don't invent confirmation numbers, links or prices.",
+  update_booking: "Change a booking's details or status. Only include the fields that change.",
+  remove_booking: "Delete a booking from the list.",
+  rule_out: "Record something the group has said no to, so it isn't suggested again. It stays on the list the traveller can see.",
+  restore_ruled_out: "Take something off the ruled-out list when the group changes their mind.",
 };
 
 /** Tool definitions for the Messages API. Order is fixed so the prompt prefix stays cacheable. */
@@ -216,32 +290,69 @@ export function toOp(name: ToolName, raw: unknown, trip: { dayIds: ReadonlyMap<n
     ...(i.notes !== undefined && { notes: i.notes }),
   });
 
+  const bookingPatch = (b: Partial<z.output<typeof toolSchemas.add_booking>>, isNew: boolean) => ({
+    ...(b.kind !== undefined && { kind: b.kind }),
+    ...(b.title !== undefined && { title: b.title }),
+    ...(b.provider !== undefined && { providerName: b.provider }),
+    ...(b.confirmation_ref !== undefined && {
+      confirmationRef: b.confirmation_ref,
+    }),
+    ...(b.starts_at !== undefined && { startsAt: b.starts_at }),
+    ...(b.ends_at !== undefined && { endsAt: b.ends_at }),
+    ...(b.status !== undefined && { status: b.status }),
+    ...(b.cost !== undefined && { costAmount: b.cost }),
+    ...(isNew ? b.cost != null && { costCurrency: b.currency ?? trip.currency } : b.currency !== undefined && { costCurrency: b.currency }),
+    ...(b.url !== undefined && { url: b.url }),
+    ...(b.notes !== undefined && { notes: b.notes }),
+  });
+
   switch (name) {
     case "add_item": {
       const i = parse("add_item");
-      return { op: "addItem", input: { dayId: null, ...itemPatch(i, true), title: i.title } };
+      return {
+        op: "addItem",
+        input: { dayId: null, ...itemPatch(i, true), title: i.title },
+      };
     }
     case "update_item": {
       const { item_id, ...rest } = parse("update_item");
-      return { op: "updateItem", input: { itemId: item_id, patch: nonEmpty(itemPatch(rest, false)) } };
+      return {
+        op: "updateItem",
+        input: { itemId: item_id, patch: nonEmpty(itemPatch(rest, false)) },
+      };
     }
     case "remove_item":
-      return { op: "deleteItem", input: { itemId: parse("remove_item").item_id } };
+      return {
+        op: "deleteItem",
+        input: { itemId: parse("remove_item").item_id },
+      };
     case "reorder_item": {
       const i = parse("reorder_item");
-      return { op: "moveItem", input: { itemId: i.item_id, direction: i.direction } };
+      return {
+        op: "moveItem",
+        input: { itemId: i.item_id, direction: i.direction },
+      };
     }
     case "add_day":
-      return { op: "addDay", input: { after: parse("add_day").after_day ?? null } };
+      return {
+        op: "addDay",
+        input: { after: parse("add_day").after_day ?? null },
+      };
     case "remove_day":
-      return { op: "removeDay", input: { dayId: dayId(parse("remove_day").day) } };
+      return {
+        op: "removeDay",
+        input: { dayId: dayId(parse("remove_day").day) },
+      };
     case "move_day": {
       const i = parse("move_day");
       return { op: "moveDay", input: { dayId: dayId(i.day), to: i.to } };
     }
     case "set_day_city": {
       const i = parse("set_day_city");
-      return { op: "updateDay", input: { dayId: dayId(i.day), baseCity: i.city } };
+      return {
+        op: "updateDay",
+        input: { dayId: dayId(i.day), baseCity: i.city },
+      };
     }
     case "update_trip": {
       const i = parse("update_trip");
@@ -256,20 +367,83 @@ export function toOp(name: ToolName, raw: unknown, trip: { dayIds: ReadonlyMap<n
         }),
       };
     }
+    case "add_packing_items":
+      return {
+        op: "addPacking",
+        input: { items: parse("add_packing_items").items },
+      };
+    case "update_packing_item": {
+      const { pack_id, ...rest } = parse("update_packing_item");
+      return {
+        op: "updatePacking",
+        input: { packingId: pack_id, patch: nonEmpty(rest) },
+      };
+    }
+    case "remove_packing_items":
+      return {
+        op: "removePacking",
+        input: { packingIds: parse("remove_packing_items").pack_ids },
+      };
+    case "add_booking": {
+      const i = parse("add_booking");
+      return {
+        op: "addBooking",
+        input: { ...bookingPatch(i, true), kind: i.kind, title: i.title },
+      };
+    }
+    case "update_booking": {
+      const { booking_id, ...rest } = parse("update_booking");
+      return {
+        op: "updateBooking",
+        input: {
+          bookingId: booking_id,
+          patch: nonEmpty(bookingPatch(rest, false)),
+        },
+      };
+    }
+    case "remove_booking":
+      return {
+        op: "deleteBooking",
+        input: { bookingId: parse("remove_booking").booking_id },
+      };
+    case "rule_out": {
+      const i = parse("rule_out");
+      return {
+        op: "addRuledOut",
+        input: {
+          label: i.label,
+          ...(i.reason !== undefined && { reason: i.reason }),
+        },
+      };
+    }
+    case "restore_ruled_out":
+      return {
+        op: "removeRuledOut",
+        input: { ruledOutId: parse("restore_ruled_out").out_id },
+      };
     case "update_profile": {
       const i = parse("update_profile");
       return {
         op: "updateProfile",
         input: nonEmpty({
           ...(i.travellers !== undefined && {
-            travellers: i.travellers && { adults: i.travellers.adults, childAges: i.travellers.child_ages ?? [] },
+            travellers: i.travellers && {
+              adults: i.travellers.adults,
+              childAges: i.travellers.child_ages ?? [],
+            },
           }),
           ...(i.pace !== undefined && { pace: i.pace }),
           ...(i.interests !== undefined && { interests: i.interests }),
           ...(i.dietary !== undefined && { dietary: i.dietary }),
-          ...(i.accessibility !== undefined && { accessibility: i.accessibility }),
-          ...(i.add_preferences !== undefined && { addPreferences: i.add_preferences }),
-          ...(i.remove_preferences !== undefined && { removePreferences: i.remove_preferences }),
+          ...(i.accessibility !== undefined && {
+            accessibility: i.accessibility,
+          }),
+          ...(i.add_preferences !== undefined && {
+            addPreferences: i.add_preferences,
+          }),
+          ...(i.remove_preferences !== undefined && {
+            removePreferences: i.remove_preferences,
+          }),
         }),
       };
     }

@@ -26,8 +26,51 @@ export type Day = Pick<Tables["days"]["Row"], "id" | "number" | "base_city" | "n
 
 export type Trip = Pick<Tables["trips"]["Row"], "id" | "name" | "destination" | "start_date" | "currency" | "budget_total" | "profile">;
 
-/** Everything the itinerary screens need, in one read. */
-export type Itinerary = { trip: Trip; days: Day[]; ideas: Item[]; canEdit: boolean };
+export type PackingItem = Pick<Tables["packing_items"]["Row"], "id" | "label" | "reason" | "category" | "quantity" | "packed" | "position">;
+export type Booking = Pick<
+  Tables["bookings"]["Row"],
+  | "id"
+  | "kind"
+  | "title"
+  | "provider_name"
+  | "confirmation_ref"
+  | "starts_at"
+  | "ends_at"
+  | "cost_amount"
+  | "cost_currency"
+  | "status"
+  | "url"
+  | "notes"
+>;
+export type RuledOut = Pick<Tables["ruled_out"]["Row"], "id" | "label" | "reason">;
+export type BookingKind = Database["public"]["Enums"]["booking_kind"];
+export type BookingStatus = Database["public"]["Enums"]["booking_status"];
+
+/** Everything the trip screens need, in one read. */
+export type Itinerary = {
+  trip: Trip;
+  days: Day[];
+  ideas: Item[];
+  packing: PackingItem[];
+  bookings: Booking[];
+  ruledOut: RuledOut[];
+  canEdit: boolean;
+};
+
+export const BOOKING_KINDS: { value: BookingKind; label: string }[] = [
+  { value: "stay", label: "Stay" },
+  { value: "flight", label: "Flight" },
+  { value: "rail", label: "Train" },
+  { value: "activity", label: "Activity" },
+  { value: "car", label: "Car" },
+  { value: "other", label: "Other" },
+];
+export const BOOKING_STATUSES: { value: BookingStatus; label: string }[] = [
+  { value: "pending", label: "Pending" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "cancelled", label: "Cancelled" },
+];
+export const bookingKindLabel = (k: BookingKind) => BOOKING_KINDS.find((x) => x.value === k)?.label ?? k;
 
 export const ITEM_TYPES: { value: ItemType; label: string }[] = [
   { value: "activity", label: "Activity" },

@@ -25,6 +25,14 @@ describe("tool definitions", () => {
       "set_day_city",
       "update_trip",
       "update_profile",
+      "add_packing_items",
+      "update_packing_item",
+      "remove_packing_items",
+      "add_booking",
+      "update_booking",
+      "remove_booking",
+      "rule_out",
+      "restore_ruled_out",
       "search_places",
       "get_weather",
       "travel_time",
@@ -152,5 +160,92 @@ describe("turning a tool call into an edit", () => {
       const { op, input: mapped } = toOp(name, input, real);
       expect(schemas[op].safeParse(mapped).error?.issues, `${name} -> ${op}`).toBeUndefined();
     }
+  });
+});
+
+describe("list tools", () => {
+  const PACK = "5b2d7c9e-1a3f-4e6b-8d0c-2f4a6c8e0b1d";
+  const BOOKING = "9c4e1a7b-3d5f-4b8a-a2c6-0e8d4f6b2a13";
+
+  it("add several packing items at once, each with its reason", () => {
+    expect(
+      toOp(
+        "add_packing_items",
+        {
+          items: [
+            { label: "Rain jacket", reason: "Rain on day 3", category: "Clothes" },
+            { label: "Passport", reason: "Flights", quantity: 2 },
+          ],
+        },
+        trip,
+      ),
+    ).toEqual({
+      op: "addPacking",
+      input: {
+        items: [
+          { label: "Rain jacket", reason: "Rain on day 3", category: "Clothes" },
+          { label: "Passport", reason: "Flights", quantity: 2 },
+        ],
+      },
+    });
+    // The reason is what makes the list useful, so the model has to give one.
+    expect(() => toOp("add_packing_items", { items: [{ label: "Hat" }] }, trip)).toThrow(ToolInputError);
+    expect(() => toOp("add_packing_items", { items: [] }, trip)).toThrow(ToolInputError);
+  });
+
+  it("change or tick off one packing item, and refuse an empty change", () => {
+    expect(toOp("update_packing_item", { pack_id: PACK, packed: true }, trip)).toEqual({
+      op: "updatePacking",
+      input: { packingId: PACK, patch: { packed: true } },
+    });
+    expect(() => toOp("update_packing_item", { pack_id: PACK }, trip)).toThrow(/Nothing to change/);
+    expect(toOp("remove_packing_items", { pack_ids: [PACK] }, trip)).toEqual({ op: "removePacking", input: { packingIds: [PACK] } });
+  });
+
+  it("record a booking, with the trip's currency for a cost", () => {
+    expect(
+      toOp("add_booking", { kind: "stay", title: "Hotel Gion", cost: 540, starts_at: "2027-04-05T15:00", confirmation_ref: "GX-1" }, trip),
+    ).toEqual({
+      op: "addBooking",
+      input: {
+        kind: "stay",
+        title: "Hotel Gion",
+        costAmount: 540,
+        costCurrency: "EUR",
+        startsAt: "2027-04-05T15:00",
+        confirmationRef: "GX-1",
+      },
+    });
+    expect(toOp("update_booking", { booking_id: BOOKING, status: "cancelled" }, trip)).toEqual({
+      op: "updateBooking",
+      input: { bookingId: BOOKING, patch: { status: "cancelled" } },
+    });
+    expect(toOp("remove_booking", { booking_id: BOOKING }, trip)).toEqual({ op: "deleteBooking", input: { bookingId: BOOKING } });
+    expect(() => toOp("add_booking", { title: "No kind" }, trip)).toThrow(ToolInputError);
+    expect(() => toOp("add_booking", { kind: "stay", title: "Late", starts_at: "next Tuesday" }, trip)).toThrow(ToolInputError);
+  });
+
+  it("rule something out and bring it back", () => {
+    expect(toOp("rule_out", { label: "Night buses", reason: "Too slow" }, trip)).toEqual({
+      op: "addRuledOut",
+      input: { label: "Night buses", reason: "Too slow" },
+    });
+    expect(toOp("restore_ruled_out", { out_id: PACK }, trip)).toEqual({ op: "removeRuledOut", input: { ruledOutId: PACK } });
+  });
+});
+
+describe("list op inputs", () => {
+  it("accept only web addresses as booking links", () => {
+    const ok = schemas.addBooking.safeParse({ kind: "stay", title: "x", url: "https://example.com/a" });
+    expect(ok.success).toBe(true);
+    for (const url of ["javascript:alert(1)", "data:text/html,hi", "example.com", "ftp://example.com"]) {
+      expect(schemas.addBooking.safeParse({ kind: "stay", title: "x", url }).success, url).toBe(false);
+    }
+  });
+
+  it("refuse a booking that ends before it starts", () => {
+    const r = schemas.addBooking.safeParse({ kind: "car", title: "x", startsAt: "2027-04-03T10:00", endsAt: "2027-04-03T09:00" });
+    expect(r.success).toBe(false);
+    expect(schemas.addBooking.safeParse({ kind: "car", title: "x", startsAt: "2027-04-03", endsAt: "2027-04-05" }).success).toBe(true);
   });
 });

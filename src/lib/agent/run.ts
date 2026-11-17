@@ -107,9 +107,11 @@ export async function runTurn({ supabase, userId, tripId, text, dayId, signal, e
       const extra =
         op === "addItem"
           ? ` The new item's id is ${result.id}.`
-          : op === "addDay" || op === "removeDay" || op === "moveDay"
-            ? " Days have been renumbered; use the new numbers from here on."
-            : "";
+          : op === "addBooking"
+            ? ` The new booking's id is ${result.id}.`
+            : op === "addDay" || op === "removeDay" || op === "moveDay"
+              ? " Days have been renumbered; use the new numbers from here on."
+              : "";
       return { type: "tool_result", tool_use_id: block.id, content: `${result.summary}.${extra}` };
     } catch (e) {
       if (e instanceof ToolInputError) return fail(e.message);
