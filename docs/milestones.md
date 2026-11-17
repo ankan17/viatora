@@ -91,6 +91,29 @@ Decisions made along the way:
 - Lookups never end a turn: a failed or slow service comes back to the model as text. At most 8 lookups per reply, and place names from OpenStreetMap are tidied and cut before they reach the model or the database.
 - Overlaps are checked only between items that have start times, and only when the earlier one has an end time (or both start together). Closed days and transfers need opening hours and real routes.
 
-## 5. Lists
+## 5. Lists — built, not yet run against the real model
+
+- [x] Packing: a list with a reason on each item ("Rain forecast on day 3"), grouped by category, tick-off by hand. Ticks make no toast but are logged
+- [x] Bookings: a record of flights, stays, trains, tours and cars with status, dates, cost, a confirmation number and a link. The app keeps the details; it books nothing
+- [x] Budget: a view of what the plan costs against the trip's budget (costs on days plus bookings that aren't cancelled; ideas shown apart; other currencies listed, never converted)
+- [x] Ruled out: things the group has said no to, kept on a list the agent reads and does not suggest again
+- [x] Chat tools: `add_packing_items`, `update_packing_item`, `remove_packing_items`, `add_booking`, `update_booking`, `remove_booking`, `rule_out`, `restore_ruled_out`. They are ops first (`ops.ts`), so by-hand and chat edits share one undo history
+- [x] The snapshot carries all four lists and the spend. Confirmation numbers and links stay out of it
+- [x] No migration: the tables, RLS and change logging came with milestone 1. A database test now covers who can write them and that undo restores them
+- [ ] A real run: packing lists written by the real model, from the real forecast, have not been seen
+
+Decisions made along the way:
+
+- Booking times are kept as typed (local, no timezone) and shown as typed. A flight's two ends are in different timezones, so converting would be wrong more often than not.
+- Links must start with http:// or https://, checked on write and again when shown. They open in a new tab with `noopener`.
+- A booking and the plan item for it each carry a cost, and both count in the budget. The Budget tab says to put the cost on one of them. Linking an item to its booking (`items.booking_id` exists) is not built.
+- The budget does no currency conversion. Costs in another currency are listed beside the total.
+- The agent records bookings the traveller tells it about and never invents a number, link or price. The prompt says so.
+
+Known gaps:
+
+- Budget by category, splitting costs between travellers, and a trip total with exchange rates.
+- Packing lists are per trip, not per traveller, and there is no template to start from.
+- Ticks are logged for undo but the toast is skipped, so an accidental tick is undone by ticking again, or from the change log.
 
 ## 6. Launch prep

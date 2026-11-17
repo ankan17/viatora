@@ -78,6 +78,59 @@ const scripts = [
     ],
   },
   {
+    match: /packing list/i,
+    steps: [
+      () => [
+        { text: "Here's a start." },
+        {
+          tool: "add_packing_items",
+          input: {
+            items: [
+              { label: "Rain jacket", reason: "Showers are likely in the first week", category: "Clothes" },
+              { label: "Passport", reason: "Needed at the airport and the hotel", category: "Documents", quantity: 2 },
+            ],
+          },
+        },
+      ],
+      () => [{ text: "I've added a rain jacket and passports to the packing list." }],
+    ],
+  },
+  {
+    match: /javascript link/i,
+    steps: [
+      () => [{ tool: "add_booking", input: { kind: "stay", title: "Odd hotel", url: "javascript:alert(1)" } }],
+      () => [{ text: "That link wasn't accepted, so nothing was saved." }],
+    ],
+  },
+  {
+    match: /booked/i,
+    steps: [
+      () => [
+        {
+          tool: "add_booking",
+          input: {
+            kind: "stay",
+            title: "Hotel Gion",
+            provider: "Booking site",
+            confirmation_ref: "GX-4471",
+            starts_at: "2027-04-05T15:00",
+            ends_at: "2027-04-08T11:00",
+            status: "confirmed",
+            cost: 540,
+          },
+        },
+      ],
+      () => [{ text: "I've kept the Hotel Gion booking with its confirmation number." }],
+    ],
+  },
+  {
+    match: /not interested in/i,
+    steps: [
+      () => [{ tool: "rule_out", input: { label: "Universal Studios", reason: "Too crowded" } }],
+      () => [{ text: "Understood, no Universal Studios." }],
+    ],
+  },
+  {
     // Three steps: the second edit depends on the first.
     match: /nara/i,
     steps: [

@@ -91,7 +91,9 @@ function normaliseWhen(p: { slot?: DaySlot | null; startTime?: string | null; en
 
 // ───────────────────────── Ops ─────────────────────────
 
-const run: { [N in OpName]: (ctx: EditContext, input: OpOutput<N>) => Promise<{ summary: string; id?: string }> } = {
+const run: {
+  [N in OpName]: (ctx: EditContext, input: OpOutput<N>) => Promise<{ summary: string; id?: string }>;
+} = {
   async addItem(ctx, input) {
     const day = input.dayId ? await getDay(ctx, input.dayId) : null;
     const summary = `Added ${quote(input.title)} to ${day ? `Day ${day.number}` : "ideas"}`;
@@ -199,7 +201,12 @@ const run: { [N in OpName]: (ctx: EditContext, input: OpOutput<N>) => Promise<{ 
     const number = Math.min(after ?? count ?? 0, count ?? 0) + 1;
     const summary = `Added Day ${number}`;
     const w = await ctx.writer(summary);
-    const { data } = check(await w.rpc("add_day", { p_trip_id: ctx.tripId, p_after: after ?? undefined }));
+    const { data } = check(
+      await w.rpc("add_day", {
+        p_trip_id: ctx.tripId,
+        p_after: after ?? undefined,
+      }),
+    );
     return { summary, id: data as string };
   },
 
@@ -254,6 +261,180 @@ const run: { [N in OpName]: (ctx: EditContext, input: OpOutput<N>) => Promise<{ 
     return { summary };
   },
 
+  async addPacking(ctx, { items }) {
+    const { data: last } = check(
+      await ctx.db.from("packing_items").select("position").eq("trip_id", ctx.tripId).order("position", { ascending: false }).limit(1),
+    );
+    let position = last?.[0]?.position ?? 0;
+    const summary =
+      items.length === 1 ? `Added ${quote(items[0].label)} to the packing list` : `Added ${items.length} things to the packing list`;
+    const w = await ctx.writer(summary);
+    const { data } = check(
+      await w
+        .from("packing_items")
+        .insert(
+          items.map((i) => ({
+            trip_id: ctx.tripId,
+            label: i.label,
+            reason: i.reason ?? "",
+            category: i.category || null,
+            quantity: i.quantity ?? 1,
+            position: ++position,
+          })),
+        )
+        .select("id"),
+    );
+    return { summary, id: data?.[0]?.id };
+  },
+
+  async updatePacking(ctx, { packingId, patch }) {
+    const { data: before } = check(
+      await ctx.db.from("packing_items").select("id, label, packed").eq("id", packingId).eq("trip_id", ctx.tripId).maybeSingle(),
+    );
+    if (!before) throw new EditError("That packing item no longer exists.");
+    const update: Database["public"]["Tables"]["packing_items"]["Update"] = {};
+    if (patch.label !== undefined) update.label = patch.label;
+    if (patch.reason !== undefined) update.reason = patch.reason;
+    if (patch.category !== undefined) update.category = patch.category || null;
+    if (patch.quantity !== undefined) update.quantity = patch.quantity;
+    if (patch.packed !== undefined) update.packed = patch.packed;
+    if (Object.keys(update).length === 0) throw new EditError("Nothing to change.");
+    const name = quote(update.label ?? before.label);
+    const summary =
+      Object.keys(update).length === 1 && update.packed !== undefined && update.packed !== before.packed
+        ? update.packed
+          ? `Packed ${name}`
+          : `Unpacked ${name}`
+        : `Updated ${name}`;
+    const w = await ctx.writer(summary);
+    check(await w.from("packing_items").update(update).eq("id", packingId).eq("trip_id", ctx.tripId));
+    return { summary, id: packingId };
+  },
+
+  async removePacking(ctx, { packingIds }) {
+    const { data } = check(await ctx.db.from("packing_items").select("id, label").eq("trip_id", ctx.tripId).in("id", packingIds));
+    if (!data?.length) throw new EditError("Those packing items no longer exist.");
+    const summary =
+      data.length === 1 ? `Removed ${quote(data[0].label)} from the packing list` : `Removed ${data.length} things from the packing list`;
+    const w = await ctx.writer(summary);
+    check(
+      await w
+        .from("packing_items")
+        .delete()
+        .eq("trip_id", ctx.tripId)
+        .in(
+          "id",
+          data.map((d) => d.id),
+        ),
+    );
+    return { summary };
+  },
+
+  async addBooking(ctx, input) {
+    const summary = `Added the booking ${quote(input.title)}`;
+    const w = await ctx.writer(summary);
+    const { data } = check(
+      await w
+        .from("bookings")
+        .insert({
+          trip_id: ctx.tripId,
+          kind: input.kind,
+          title: input.title,
+          provider_name: input.providerName || null,
+          confirmation_ref: input.confirmationRef || null,
+          starts_at: input.startsAt ?? null,
+          ends_at: input.endsAt ?? null,
+          status: input.status ?? "pending",
+          cost_amount: input.costAmount ?? null,
+          cost_currency: input.costAmount != null ? (input.costCurrency ?? (await tripCurrency(ctx))) : null,
+          url: input.url || null,
+          notes: input.notes ?? "",
+        })
+        .select("id")
+        .single(),
+    );
+    return { summary, id: data!.id };
+  },
+
+  async updateBooking(ctx, { bookingId, patch }) {
+    const { data: before } = check(
+      await ctx.db
+        .from("bookings")
+        .select("id, title, status, starts_at, ends_at, cost_amount, cost_currency")
+        .eq("id", bookingId)
+        .eq("trip_id", ctx.tripId)
+        .maybeSingle(),
+    );
+    if (!before) throw new EditError("That booking no longer exists.");
+    const update: Database["public"]["Tables"]["bookings"]["Update"] = {};
+    if (patch.kind !== undefined) update.kind = patch.kind;
+    if (patch.title !== undefined) update.title = patch.title;
+    if (patch.providerName !== undefined) update.provider_name = patch.providerName || null;
+    if (patch.confirmationRef !== undefined) update.confirmation_ref = patch.confirmationRef || null;
+    if (patch.startsAt !== undefined) update.starts_at = patch.startsAt;
+    if (patch.endsAt !== undefined) update.ends_at = patch.endsAt;
+    if (patch.status !== undefined) update.status = patch.status;
+    if (patch.url !== undefined) update.url = patch.url || null;
+    if (patch.notes !== undefined) update.notes = patch.notes;
+    if (patch.costAmount !== undefined) {
+      update.cost_amount = patch.costAmount;
+      update.cost_currency = patch.costAmount == null ? null : (patch.costCurrency ?? before.cost_currency ?? (await tripCurrency(ctx)));
+    } else if (patch.costCurrency != null && patch.costCurrency !== before.cost_currency) {
+      if (before.cost_amount == null) throw new EditError("There's no cost on that yet. Give the amount as well.");
+      update.cost_currency = patch.costCurrency;
+    }
+    // The database compares what is stored, so check the end against the start that will be there.
+    const starts = update.starts_at !== undefined ? update.starts_at : before.starts_at;
+    const ends = update.ends_at !== undefined ? update.ends_at : before.ends_at;
+    if (starts && ends && new Date(ends) < new Date(starts)) throw new EditError("It can't end before it starts.");
+    if (Object.keys(update).length === 0) throw new EditError("Nothing to change.");
+    const name = quote(update.title ?? before.title);
+    const summary =
+      Object.keys(update).length === 1 && update.status && update.status !== before.status
+        ? update.status === "confirmed"
+          ? `Confirmed ${name}`
+          : update.status === "cancelled"
+            ? `Cancelled ${name}`
+            : `Marked ${name} as pending`
+        : `Updated ${name}`;
+    const w = await ctx.writer(summary);
+    check(await w.from("bookings").update(update).eq("id", bookingId).eq("trip_id", ctx.tripId));
+    return { summary, id: bookingId };
+  },
+
+  async deleteBooking(ctx, { bookingId }) {
+    const { data } = check(await ctx.db.from("bookings").select("id, title").eq("id", bookingId).eq("trip_id", ctx.tripId).maybeSingle());
+    if (!data) throw new EditError("That booking no longer exists.");
+    const summary = `Removed the booking ${quote(data.title)}`;
+    const w = await ctx.writer(summary);
+    check(await w.from("bookings").delete().eq("id", bookingId).eq("trip_id", ctx.tripId));
+    return { summary };
+  },
+
+  async addRuledOut(ctx, { label, reason }) {
+    const { count } = check(await ctx.db.from("ruled_out").select("id", { count: "exact", head: true }).eq("trip_id", ctx.tripId));
+    if ((count ?? 0) >= 100) throw new EditError("That's a long list of things ruled out. Remove some before adding more.");
+    const summary = `Ruled out ${quote(label)}`;
+    const w = await ctx.writer(summary);
+    const { data } = check(
+      await w
+        .from("ruled_out")
+        .insert({ trip_id: ctx.tripId, label, reason: reason ?? "" })
+        .select("id")
+        .single(),
+    );
+    return { summary, id: data!.id };
+  },
+
+  async removeRuledOut(ctx, { ruledOutId }) {
+    const { data } = check(await ctx.db.from("ruled_out").select("id, label").eq("id", ruledOutId).eq("trip_id", ctx.tripId).maybeSingle());
+    if (!data) throw new EditError("That is no longer on the ruled-out list.");
+    const summary = `Back on the table: ${quote(data.label)}`;
+    const w = await ctx.writer(summary);
+    check(await w.from("ruled_out").delete().eq("id", ruledOutId).eq("trip_id", ctx.tripId));
+    return { summary };
+  },
+
   async updateProfile(ctx, input) {
     const { data } = check(await ctx.db.from("trips").select("profile").eq("id", ctx.tripId).maybeSingle());
     if (!data) throw new EditError("That trip no longer exists.");
@@ -264,11 +445,15 @@ const run: { [N in OpName]: (ctx: EditContext, input: OpOutput<N>) => Promise<{ 
 
     const next = tripProfileSchema.safeParse({
       ...before,
-      ...(input.travellers !== undefined && { travellers: input.travellers ?? undefined }),
+      ...(input.travellers !== undefined && {
+        travellers: input.travellers ?? undefined,
+      }),
       ...(input.pace !== undefined && { pace: input.pace ?? undefined }),
       ...(input.interests !== undefined && { interests: input.interests }),
       ...(input.dietary !== undefined && { dietary: input.dietary }),
-      ...(input.accessibility !== undefined && { accessibility: input.accessibility || undefined }),
+      ...(input.accessibility !== undefined && {
+        accessibility: input.accessibility || undefined,
+      }),
       preferences: [...before.preferences.filter((p) => !dropped.some((d) => same(p, d))), ...added],
     });
     if (!next.success) throw new EditError("That's more than the trip profile can hold. Remove something first.");
@@ -309,7 +494,11 @@ export function editContext(tripId: string, db: ServerClient, actor: Actor, batc
 /** Validate and apply one edit. Errors meant for people come back as `{ ok: false }`. */
 export async function applyEdit<N extends OpName>(ctx: EditContext, op: N, input: unknown): Promise<EditResult> {
   const parsed = schemas[op].safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "That edit isn't valid." };
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "That edit isn't valid.",
+    };
   try {
     const out = await (run[op] as (c: EditContext, i: unknown) => Promise<{ summary: string; id?: string }>)(ctx, parsed.data);
     return { ok: true, batchId: ctx.batchId, ...out };
@@ -318,7 +507,10 @@ export async function applyEdit<N extends OpName>(ctx: EditContext, op: N, input
     const code = (e as { code?: string }).code;
     if (code === "42501") return { ok: false, error: "You can view this trip but not edit it." };
     if (code === "23503")
-      return { ok: false, error: "That refers to something that doesn't exist. A place_id must come from search_places." };
+      return {
+        ok: false,
+        error: "That refers to something that doesn't exist. A place_id must come from search_places.",
+      };
     console.error(`edit ${op} failed`, e);
     return { ok: false, error: "That didn't save. Try again." };
   }
