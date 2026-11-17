@@ -54,7 +54,7 @@ export function PackingTab() {
                   aria-checked={p.packed}
                   aria-label={`Packed: ${p.label}`}
                   disabled={!canEdit || pending}
-                  onClick={() => run("updatePacking", { packingId: p.id, patch: { packed: !p.packed } }, { quiet: true })}
+                  onClick={() => run("updatePacking", { packingId: p.id, patch: { packed: !p.packed } })}
                   className="flex size-11 shrink-0 items-center justify-center"
                 >
                   <span

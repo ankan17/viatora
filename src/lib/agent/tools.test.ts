@@ -249,3 +249,13 @@ describe("list op inputs", () => {
     expect(schemas.addBooking.safeParse({ kind: "car", title: "x", startsAt: "2027-04-03", endsAt: "2027-04-05" }).success).toBe(true);
   });
 });
+
+describe("dates that don't exist", () => {
+  it("are refused before the database sees them", () => {
+    for (const startsAt of ["2027-02-31T10:00", "2027-13-01", "2027-04-31"]) {
+      expect(schemas.addBooking.safeParse({ kind: "car", title: "x", startsAt }).success, startsAt).toBe(false);
+      expect(() => toOp("add_booking", { kind: "car", title: "x", starts_at: startsAt }, trip), startsAt).toThrow(ToolInputError);
+    }
+    expect(schemas.addBooking.safeParse({ kind: "car", title: "x", startsAt: "2028-02-29T10:00" }).success).toBe(true);
+  });
+});

@@ -16,6 +16,11 @@ const currency = z
   .nullable();
 const amount = z.number().nonnegative().max(10_000_000).nullable();
 
+/** "2027-02-31" matches the pattern but isn't a day, and the database would refuse it. */
+export const realDate = (v: string) => {
+  const d = new Date(`${v.slice(0, 10)}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v.slice(0, 10);
+};
 const label = (max: number) => z.string().trim().min(1, "Give it a name").max(max);
 const httpUrl = z
   .string()
@@ -31,7 +36,8 @@ const httpUrl = z
 /** A local date and time as written, "2027-04-03" or "2027-04-03T14:30". Kept as typed, with no timezone conversion. */
 const when = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}(T([01]\d|2[0-3]):[0-5]\d)?$/, "Use a date like 2027-04-03, with a time like 2027-04-03T14:30 if you have one");
+  .regex(/^\d{4}-\d{2}-\d{2}(T([01]\d|2[0-3]):[0-5]\d)?$/, "Use a date like 2027-04-03, with a time like 2027-04-03T14:30 if you have one")
+  .refine(realDate, "That date doesn't exist");
 
 const packingFields = z.object({
   label: label(120),

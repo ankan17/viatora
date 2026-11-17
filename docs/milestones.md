@@ -93,7 +93,7 @@ Decisions made along the way:
 
 ## 5. Lists — built, not yet run against the real model
 
-- [x] Packing: a list with a reason on each item ("Rain forecast on day 3"), grouped by category, tick-off by hand. Ticks make no toast but are logged
+- [x] Packing: a list with a reason on each item ("Rain forecast on day 3"), grouped by category, tick-off by hand
 - [x] Bookings: a record of flights, stays, trains, tours and cars with status, dates, cost, a confirmation number and a link. The app keeps the details; it books nothing
 - [x] Budget: a view of what the plan costs against the trip's budget (costs on days plus bookings that aren't cancelled; ideas shown apart; other currencies listed, never converted)
 - [x] Ruled out: things the group has said no to, kept on a list the agent reads and does not suggest again
@@ -114,6 +114,6 @@ Known gaps:
 
 - Budget by category, splitting costs between travellers, and a trip total with exchange rates.
 - Packing lists are per trip, not per traveller, and there is no template to start from.
-- Ticks are logged for undo but the toast is skipped, so an accidental tick is undone by ticking again, or from the change log.
+- Undoing a change that a later tick touched (an agent-added item the traveller then ticked) is refused as a conflict, like any later edit to the same row.
 
 ## 6. Launch prep

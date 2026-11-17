@@ -262,6 +262,8 @@ const run: {
   },
 
   async addPacking(ctx, { items }) {
+    const { count } = check(await ctx.db.from("packing_items").select("id", { count: "exact", head: true }).eq("trip_id", ctx.tripId));
+    if ((count ?? 0) + items.length > 200) throw new EditError("The packing list can hold 200 things. Remove some before adding more.");
     const { data: last } = check(
       await ctx.db.from("packing_items").select("position").eq("trip_id", ctx.tripId).order("position", { ascending: false }).limit(1),
     );
@@ -331,6 +333,8 @@ const run: {
   },
 
   async addBooking(ctx, input) {
+    const { count } = check(await ctx.db.from("bookings").select("id", { count: "exact", head: true }).eq("trip_id", ctx.tripId));
+    if ((count ?? 0) >= 100) throw new EditError("A trip can hold 100 bookings. Remove some before adding more.");
     const summary = `Added the booking ${quote(input.title)}`;
     const w = await ctx.writer(summary);
     const { data } = check(
@@ -386,7 +390,7 @@ const run: {
     // The database compares what is stored, so check the end against the start that will be there.
     const starts = update.starts_at !== undefined ? update.starts_at : before.starts_at;
     const ends = update.ends_at !== undefined ? update.ends_at : before.ends_at;
-    if (starts && ends && new Date(ends) < new Date(starts)) throw new EditError("It can't end before it starts.");
+    if (starts && ends && ends.slice(0, 16) < starts.slice(0, 16)) throw new EditError("It can't end before it starts.");
     if (Object.keys(update).length === 0) throw new EditError("Nothing to change.");
     const name = quote(update.title ?? before.title);
     const summary =

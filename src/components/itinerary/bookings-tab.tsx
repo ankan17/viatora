@@ -97,7 +97,7 @@ function BookingCard({ booking: b, recent, onEdit }: { booking: Booking; recent:
               href={link}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`Open the page for ${b.title}`}
+              aria-label={`Open booking page, ${b.title}, opens in a new tab`}
               className="inline-flex min-h-11 items-center rounded-sm px-3 font-bold text-plum hover:bg-blush"
             >
               Open booking page

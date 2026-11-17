@@ -62,7 +62,7 @@ test("pack, book and budget by hand", async ({ page }, info) => {
   await expect(it.getByText("Flight LHR to OPO")).toBeVisible();
   await expect(it.getByText("QX81ZT")).toBeVisible();
   await expect(it.getByText("2027-05-07 09:15")).toBeVisible();
-  const link = it.getByRole("link", { name: "Open the page for Flight LHR to OPO" });
+  const link = it.getByRole("link", { name: "Open booking page, Flight LHR to OPO, opens in a new tab" });
   await expect(link).toHaveAttribute("href", "https://example.com/trip/QX81ZT");
   await expect(link).toHaveAttribute("rel", /noopener/);
 
