@@ -61,15 +61,32 @@ describe("place search", () => {
 });
 
 describe("finding a city", () => {
-  it("uses the first place named in a destination phrase", async () => {
-    const urls = respond({ results: [{ name: "Lisbon", latitude: 38.7, longitude: -9.1, country: "Portugal" }] });
-    expect(await findCity("Lisbon and the Algarve")).toEqual({ name: "Lisbon", country: "Portugal", lat: 38.7, lng: -9.1 });
-    expect(urls[0].searchParams.get("name")).toBe("Lisbon");
+  const lisbon = { results: [{ name: "Lisbon", latitude: 38.7, longitude: -9.1, country: "Portugal" }] };
+
+  it("tries the whole phrase first, so qualified and compound names mean what they say", async () => {
+    const urls = respond({ results: [{ name: "Trinidad and Tobago", latitude: 10.7, longitude: -61.2, country: "Trinidad and Tobago" }] });
+    expect((await findCity("Trinidad and Tobago"))?.name).toBe("Trinidad and Tobago");
+    expect(urls).toHaveLength(1);
+    expect(urls[0].searchParams.get("name")).toBe("Trinidad and Tobago");
   });
+
+  it("falls back to the first place named in a destination phrase", async () => {
+    const urls = respond({}, lisbon);
+    expect(await findCity("Lisbon and the Algarve")).toEqual({ name: "Lisbon", country: "Portugal", lat: 38.7, lng: -9.1 });
+    expect(urls.map((u) => u.searchParams.get("name"))).toEqual(["Lisbon and the Algarve", "Lisbon"]);
+  });
+
   it("says null when nothing matches", async () => {
     respond({});
     expect(await findCity("Nowhereville")).toBeNull();
     expect(await findCity("x")).toBeNull();
+  });
+});
+
+describe("a service that misbehaves", () => {
+  it("is a lookup error, not a crash, when it answers with something that isn't JSON", async () => {
+    vi.stubGlobal("fetch", async () => new Response("<html>Bad gateway</html>", { status: 200 }));
+    await expect(findCity("Kyoto")).rejects.toThrow(LookupError);
   });
 });
 
@@ -100,7 +117,7 @@ describe("weather", () => {
   it("falls back to what the week is usually like when it is too far ahead", async () => {
     const urls = respond({ daily: { temperature_2m_max: [20, 18, 22], temperature_2m_min: [10, 8, 9], precipitation_sum: [0, 2, 0] } });
     const w = await getWeather(KYOTO, "2027-04-05", today);
-    expect(w).toEqual({ kind: "typical", date: "2027-04-05", high: 20, low: 9, wetDaysInTen: 3, years: "2022 to 2026" });
+    expect(w).toEqual({ kind: "typical", date: "2027-04-05", high: 20, low: 9, wetDaysInTen: 3, years: "2022 to 2026", inPast: false });
     expect(urls).toHaveLength(5);
     expect(urls[0].pathname).toBe("/v1/archive");
     expect(urls[0].searchParams.get("start_date")).toBe("2026-04-02");
@@ -112,6 +129,28 @@ describe("weather", () => {
     respond({ daily: { temperature_2m_max: [5], temperature_2m_min: [1], precipitation_sum: [0] } });
     expect((await getWeather(KYOTO, "2027-02-01", today)).kind).toBe("typical");
     expect((await getWeather(KYOTO, "2027-03-17", today)).kind).toBe("typical");
+  });
+
+  it("says so when the day has already passed", async () => {
+    respond({ daily: { temperature_2m_max: [5], temperature_2m_min: [1], precipitation_sum: [0] } });
+    const w = await getWeather(KYOTO, "2027-02-01", today);
+    expect(describeWeather(w, "Kyoto", "Mon 1 Feb")).toMatch(/^That day has passed\. In Kyoto that week was typically/);
+  });
+
+  it("keeps to years whose record is complete, and to the ones that answered", async () => {
+    // Early January: last December is still being filled in, so a Dec 30 window skips last year and uses the five before it.
+    const urls = respond({ daily: { temperature_2m_max: [3], temperature_2m_min: [-2], precipitation_sum: [0] } }, "fail", { daily: { temperature_2m_max: [5], temperature_2m_min: [0], precipitation_sum: [0] } });
+    const w = await getWeather(KYOTO, "2027-12-30", new Date("2027-01-05T10:00:00Z"));
+    expect(urls.map((u) => u.searchParams.get("start_date")?.slice(0, 4)).sort()).toEqual(["2021", "2022", "2023", "2024", "2025"]);
+    expect(w.kind === "typical" && w.high).toBe(5); // 3, 5, 5, 5: the failed year is left out of the average, not counted as zero
+  });
+
+  it("copes with Feb 29 in a year that has none, and says nothing about rain it has no data for", async () => {
+    const urls = respond({ daily: { temperature_2m_max: [8], temperature_2m_min: [1] } });
+    const w = await getWeather(KYOTO, "2028-02-29", today);
+    expect(urls[0].searchParams.get("end_date")).toBe("2026-03-04");
+    expect(w.kind === "typical" && w.wetDaysInTen).toBeNull();
+    expect(describeWeather(w, "Kyoto", "Tue 29 Feb")).not.toContain("rain");
   });
 
   it("reports a missing forecast or record instead of inventing one", async () => {

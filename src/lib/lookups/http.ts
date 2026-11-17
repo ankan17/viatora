@@ -17,12 +17,17 @@ export class LookupError extends Error {}
 export async function getJson<T>(base: string, path: string, params: Record<string, string | number | undefined>): Promise<T> {
   const url = new URL(path, base);
   for (const [key, value] of Object.entries(params)) if (value !== undefined) url.searchParams.set(key, String(value));
-  let res: Response;
   try {
-    res = await fetch(url, { headers: { Accept: "application/json", "User-Agent": "trip-planner" }, signal: AbortSignal.timeout(8_000), cache: "no-store" });
-  } catch {
-    throw new LookupError("The lookup service didn't answer in time.");
+    const res = await fetch(url, {
+      headers: { Accept: "application/json", "User-Agent": process.env.LOOKUP_USER_AGENT ?? "viatora-trip-planner" },
+      signal: AbortSignal.timeout(8_000),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new LookupError(`The lookup service returned an error (${res.status}).`);
+    // The timeout covers reading the body too, and a proxy's error page isn't JSON.
+    return (await res.json()) as T;
+  } catch (e) {
+    if (e instanceof LookupError) throw e;
+    throw new LookupError("The lookup service didn't answer properly.");
   }
-  if (!res.ok) throw new LookupError(`The lookup service returned an error (${res.status}).`);
-  return (await res.json()) as T;
 }

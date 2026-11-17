@@ -316,6 +316,7 @@ export async function applyEdit<N extends OpName>(ctx: EditContext, op: N, input
     if (e instanceof EditError) return { ok: false, error: e.message };
     const code = (e as { code?: string }).code;
     if (code === "42501") return { ok: false, error: "You can view this trip but not edit it." };
+    if (code === "23503") return { ok: false, error: "That refers to something that doesn't exist. A place_id must come from search_places." };
     console.error(`edit ${op} failed`, e);
     return { ok: false, error: "That didn't save. Try again." };
   }
