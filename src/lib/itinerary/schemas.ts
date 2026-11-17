@@ -20,6 +20,7 @@ const itemFields = z.object({
   title,
   type: z.enum(["activity", "sight", "food", "stay", "transit", "flight", "rail", "note"]),
   dayId: id.nullable(),
+  placeId: id.nullable(),
   slot,
   startTime: time,
   endTime: time,

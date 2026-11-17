@@ -102,6 +102,7 @@ const run: { [N in OpName]: (ctx: EditContext, input: OpOutput<N>) => Promise<{ 
         .insert({
           trip_id: ctx.tripId,
           day_id: input.dayId,
+          place_id: input.placeId ?? null,
           title: input.title,
           type: input.type ?? "activity",
           status: input.status ?? (day ? "planned" : "idea"),
@@ -132,6 +133,7 @@ const run: { [N in OpName]: (ctx: EditContext, input: OpOutput<N>) => Promise<{ 
       if (before.cost_amount == null) throw new EditError("There's no cost on that yet. Give the amount as well.");
       update.cost_currency = patch.costCurrency;
     }
+    if (patch.placeId !== undefined) update.place_id = patch.placeId;
     if (patch.dayId !== undefined && patch.dayId !== before.day_id) {
       update.day_id = patch.dayId;
       update.position = await nextPosition(ctx, patch.dayId);

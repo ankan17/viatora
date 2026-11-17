@@ -1,4 +1,5 @@
 import { dayDate, dayLabel, formatDay } from "@/lib/dates";
+import { checkDay } from "@/lib/itinerary/checks";
 import { formatCost, groupDay, timeRange } from "@/lib/itinerary/group";
 import { slotLabel, typeLabel, type Item, type Itinerary } from "@/lib/itinerary/types";
 import { readTripProfile, type TripProfile } from "@/lib/trip-profile";
@@ -57,6 +58,7 @@ export function describeTrip(itinerary: Itinerary, recent: RecentChange[] = []):
     const sections = groupDay(day.items);
     if (sections.length === 0) lines.push("(nothing planned)");
     for (const section of sections) lines.push(...section.items.map(itemLine));
+    for (const check of checkDay(day.items)) lines.push(`Check: ${check.message}`);
   }
 
   lines.push("", "Ideas (not on a day)");

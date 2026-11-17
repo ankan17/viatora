@@ -6,6 +6,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
 import { More, Plus } from "@/components/ui/icons";
 import { dayLabel } from "@/lib/dates";
+import { checkDay } from "@/lib/itinerary/checks";
 import { groupDay } from "@/lib/itinerary/group";
 import type { Day, Item } from "@/lib/itinerary/types";
 import { IdeaCard, ItemCard } from "./item-card";
@@ -19,6 +20,7 @@ export function DayView({ day, showHeading = true }: { day: Day; showHeading?: b
   const { itinerary, setEditor } = useTrip();
   const [settings, setSettings] = useState(false);
   const sections = groupDay(day.items);
+  const checks = checkDay(day.items);
 
   return (
     <section aria-label={`Day ${day.number}`} className="flex flex-col gap-3">
@@ -31,6 +33,14 @@ export function DayView({ day, showHeading = true }: { day: Day; showHeading?: b
             </button>
           )}
         </div>
+      )}
+
+      {checks.length > 0 && (
+        <ul aria-label="Worth a look" className="flex flex-col gap-1 rounded-md bg-blush px-3 py-2 text-caption text-plum">
+          {checks.map((c) => (
+            <li key={c.itemIds.join()}>{c.message}</li>
+          ))}
+        </ul>
       )}
 
       {sections.length === 0 ? (

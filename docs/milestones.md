@@ -67,6 +67,21 @@ Known gaps, found in review and left for later:
 - Undoing a reply is refused ("Something else changed since") when a later change touched the same row. The trip profile lives on the trip's row, so two replies that each save a preference must be undone newest first.
 - One turn per trip at a time is enforced only by the chat box. Two tabs can run two turns at once.
 - On serverless hosting, check that Stop cancels the function, and that a turn cut off by the time limit still leaves a card for the edits it made.
-## 4. Lookups
+## 4. Lookups — built, not yet run against the real services or model
+
+- [x] Place search (Photon over OpenStreetMap: names, kinds, locations). Results are stored as shared place rows and an item can be pinned to one (`place_id` on add_item / update_item)
+- [x] Weather (Open-Meteo): a forecast within 16 days, otherwise what that week was like over the last five years
+- [x] Travel time between two items that have places, estimated from distance (not a route)
+- [x] Checks: plans on a day whose times clash are shown on the day ("Worth a look") and passed to the agent
+- [x] Chat tools: `search_places`, `get_weather`, `travel_time` (read-only; they return text and never edit the trip)
+- [x] Tests: unit 66, database 41, end-to-end 31 (phone and desktop). Lookups are answered by the same scripted stand-in as the model
+- [ ] A real run: the live services and the model have not been exercised together
+
+Decisions made along the way:
+- Place data is OpenStreetMap, so there are no ratings, opening hours or prices, and the prompt says so. Google Places needs a key and a billing decision; the places table already stores a Google place by ID only.
+- Open-Meteo's free tier is for non-commercial use. A launch that charges (milestone 6) needs its paid plan or another source. Photon's public instance is fair-use only; use your own instance before launch.
+- `ensure_place` is now server-only. Place rows are shared across trips, so a person must not be able to set a place's name or location.
+- Directions, stays and flights, rail times and web search are not built; travel time is an estimate and the prompt says so.
+- Overlaps are checked only between items that have start times, and only when the earlier one has an end time (or both start together). Closed days and transfers need opening hours and real routes.
 ## 5. Lists
 ## 6. Launch prep

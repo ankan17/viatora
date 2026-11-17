@@ -71,6 +71,12 @@ describe("the trip as the model sees it", () => {
     expect(text).toContain("Ideas (not on a day)\n- Tea ceremony (activity, idea) [item:i-tea]");
   });
 
+  it("passes on the clashes the app found in a day", () => {
+    const clash = { ...trip, days: [{ ...trip.days[0], items: [...trip.days[0].items, item({ id: "i-tour", title: "Market tour", start_time: "13:00:00" })] }] };
+    expect(describeTrip(clash)).toContain("Check: Lunch at Nishiki runs until 13:30, but Market tour starts at 13:00.");
+    expect(text).not.toContain("Check:");
+  });
+
   it("says who made the latest changes and which were undone", () => {
     expect(text).toContain("- You: Added “Gion walk” to Day 1 (undone by the traveller)");
     expect(text).toContain("- Traveller, by hand: Set the trip dates");

@@ -25,6 +25,7 @@ const itemFields = {
   title: z.string().trim().min(1).max(200).describe("Short name as it should read on the itinerary, e.g. 'Fushimi Inari Shrine'."),
   kind,
   day: dayNumber.nullable().describe("Day number, or null to keep it in ideas (not on a day)."),
+  place_id: z.uuid().nullable().describe("A place from search_places, so the item is pinned to a real location. null removes it."),
   part_of_day: partOfDay.nullable().describe("Rough timing. Use this or start_time, not both."),
   start_time: time.nullable(),
   end_time: time.nullable().describe("Always send start_time with it, even if the start isn't changing."),
@@ -66,6 +67,29 @@ export const toolSchemas = {
   }),
 } as const;
 
+/** Read-only: these look something up and return text. They never change the trip. */
+export const lookupSchemas = {
+  search_places: z.object({
+    query: z.string().trim().min(2).max(120).describe("What to look for: a name ('Fushimi Inari') or a kind of place ('ramen', 'bookshop')."),
+    near_day: dayNumber.optional().describe("Prefer places near the city where the group stays on this day. Leave out to search near the trip's destination."),
+  }),
+  get_weather: z.object({ day: dayNumber.describe("The trip day to get the weather for. The trip needs dates.") }),
+  travel_time: z.object({
+    from_item_id: itemId.describe("An item that has a place."),
+    to_item_id: itemId.describe("Another item that has a place."),
+  }),
+} as const;
+
+export type LookupName = keyof typeof lookupSchemas;
+export const isLookupName = (name: string): name is LookupName => name in lookupSchemas;
+
+const lookupDescriptions: Record<LookupName, string> = {
+  search_places:
+    "Search real places by name or kind. Returns up to five with a place_id each; pass a place_id to add_item or update_item to pin the item to it. Data is from OpenStreetMap: names, kinds and locations only. It has no ratings, opening hours or prices, so don't claim any.",
+  get_weather: "Weather for a trip day: a forecast when the day is within about two weeks, otherwise what that week has typically been like.",
+  travel_time: "Rough travel time between two items that both have a place, estimated from the distance. Not a route or a timetable.",
+};
+
 export type ToolName = keyof typeof toolSchemas;
 
 const descriptions: Record<ToolName, string> = {
@@ -85,18 +109,28 @@ const descriptions: Record<ToolName, string> = {
 };
 
 /** Tool definitions for the Messages API. Order is fixed so the prompt prefix stays cacheable. */
-export const tools: Anthropic.Beta.BetaTool[] = (Object.keys(toolSchemas) as ToolName[]).map((name) => {
-  const schema: Record<string, unknown> = z.toJSONSchema(toolSchemas[name]);
-  delete schema.$schema;
+const jsonSchema = (schema: z.ZodType): Record<string, unknown> => {
+  const out: Record<string, unknown> = z.toJSONSchema(schema);
+  delete out.$schema;
+  return out;
+};
+
+export const tools: Anthropic.Beta.BetaTool[] = [
+  ...(Object.keys(toolSchemas) as ToolName[]).map((name) => toolDefinition(name, descriptions[name], toolSchemas[name])),
+  ...(Object.keys(lookupSchemas) as LookupName[]).map((name) => toolDefinition(name, lookupDescriptions[name], lookupSchemas[name])),
+];
+
+function toolDefinition(name: string, description: string, zodSchema: z.ZodType): Anthropic.Beta.BetaTool {
+  const schema = jsonSchema(zodSchema);
   return {
     name,
-    description: descriptions[name],
+    description,
     // Inputs are a few short fields, so they are left to arrive whole (no eager
     // input streaming): nothing is gained by streaming them, and a half-written
     // input can't be retried cleanly once the reply's text is on screen.
     input_schema: schema as Anthropic.Beta.BetaTool.InputSchema,
   };
-});
+}
 
 export const isToolName = (name: string): name is ToolName => name in toolSchemas;
 
@@ -137,6 +171,7 @@ export function toOp(name: ToolName, raw: unknown, trip: { dayIds: ReadonlyMap<n
     ...(i.title !== undefined && { title: i.title }),
     ...(i.kind !== undefined && { type: i.kind }),
     ...(i.day !== undefined && { dayId: i.day === null ? null : dayId(i.day) }),
+    ...(i.place_id !== undefined && { placeId: i.place_id }),
     ...(i.part_of_day !== undefined && { slot: i.part_of_day }),
     ...(i.start_time !== undefined && { startTime: i.start_time }),
     ...(i.end_time !== undefined && { endTime: i.end_time }),

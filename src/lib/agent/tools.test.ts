@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { schemas } from "@/lib/itinerary/schemas";
-import { isToolName, ToolInputError, toOp, tools } from "./tools";
+import { isLookupName, isToolName, ToolInputError, toOp, tools } from "./tools";
 
 const ITEM = "3f0e2a5c-1b7d-4c8e-9a6f-2d4b6c8e0a1b";
 const DAY = "7a1c9e2b-4d6f-4a8b-8c0d-1e3f5a7b9c2d";
@@ -10,6 +10,7 @@ describe("tool definitions", () => {
   it("are plain JSON Schema objects in a fixed order", () => {
     expect(tools.map((t) => t.name)).toEqual([
       "add_item", "update_item", "remove_item", "reorder_item", "add_day", "remove_day", "move_day", "set_day_city", "update_trip", "update_profile",
+      "search_places", "get_weather", "travel_time",
     ]);
     for (const tool of tools) {
       expect(tool.input_schema.type).toBe("object");
@@ -22,6 +23,8 @@ describe("tool definitions", () => {
   it("know their own names", () => {
     expect(isToolName("add_item")).toBe(true);
     expect(isToolName("drop_table")).toBe(false);
+    expect(isLookupName("search_places")).toBe(true);
+    expect(isLookupName("add_item")).toBe(false);
   });
 });
 
@@ -97,6 +100,8 @@ describe("turning a tool call into an edit", () => {
       ["add_item", { title: "Tea ceremony" }],
       ["update_item", { item_id: ITEM, day: null, part_of_day: null, start_time: null, end_time: null, cost: null }],
       ["update_item", { item_id: ITEM, currency: "JPY" }],
+      ["add_item", { title: "Ichiran", place_id: DAY }],
+      ["update_item", { item_id: ITEM, place_id: null }],
       ["remove_item", { item_id: ITEM }],
       ["reorder_item", { item_id: ITEM, direction: "later" }],
       ["add_day", {}],

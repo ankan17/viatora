@@ -195,3 +195,43 @@ test("a reply can be stopped, and what arrived is kept", async ({ page }) => {
   await expect(chat(page).getByText("Tell me slowly")).toBeVisible();
   await expect(chat(page).getByText("after that we rest")).toHaveCount(0);
 });
+
+test("looks places and weather up, and pins an item to a real place", async ({ page }, info) => {
+  const isPhone = info.project.name === "phone";
+  await signInNewUser(page);
+  await createTrip(page, "Kyoto week", { destination: "Kyoto", startDate: "2027-04-05", days: 2 });
+
+  await ask(page, "Find a ramen place for dinner");
+  await expect(chat(page).getByText("Pinned Ichiran to Day 1.")).toBeVisible();
+  await expect(card(page)).toContainText("Added “Ichiran Kyoto” to Day 1");
+  const day = await openItinerary(page, isPhone);
+  // The card shows the place the item is pinned to.
+  await expect(day.getByRole("button", { name: /Ichiran Kyoto, Food · Ichiran Kyoto/ })).toBeVisible();
+  if (isPhone) await day.getByRole("button", { name: "Back to chat" }).click();
+
+  // Too far ahead for a forecast, so it says what the week is usually like.
+  await ask(page, "What's the weather like on day 1?");
+  await expect(chat(page).getByText(/typically 19°C by day and 9°C at night, with rain on about 3 days in 10/)).toBeVisible();
+  await expect(chat(page).getByText(/Source: Open-Meteo historical data/)).toBeVisible();
+});
+
+test("days with clashing times say so", async ({ page }, info) => {
+  const isPhone = info.project.name === "phone";
+  await signInNewUser(page);
+  await createTrip(page, "Clash", { days: 1 });
+  const it = await openItinerary(page, isPhone);
+  const timed = async (what: string, start: string, end: string) => {
+    await it.getByRole("button", { name: "Add to Day 1" }).click();
+    const editor = page.getByRole("dialog", { name: "Add to the day" });
+    await editor.getByLabel("What").fill(what);
+    await editor.getByRole("radio", { name: "At a time" }).check();
+    await editor.getByLabel("Starts").fill(start);
+    await editor.getByLabel("Ends").fill(end);
+    await editor.getByRole("button", { name: "Add" }).click();
+    await expect(it.getByRole("button", { name: new RegExp(what) })).toBeVisible();
+  };
+  await timed("Museum", "10:00", "12:00");
+  await expect(it.getByRole("list", { name: "Worth a look" })).toHaveCount(0);
+  await timed("Lunch", "11:30", "12:30");
+  await expect(it.getByRole("list", { name: "Worth a look" })).toContainText("Museum runs until 12:00, but Lunch starts at 11:30.");
+});

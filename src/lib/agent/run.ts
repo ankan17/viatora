@@ -8,7 +8,8 @@ import type { TurnEvent } from "./events";
 import { toHistory, type ChatEdit } from "./messages";
 import { DAILY_MESSAGE_LIMIT, EFFORT, HISTORY_LIMIT, MAX_STEPS, MAX_TOKENS, MODEL, SYSTEM_PROMPT } from "./model";
 import { countRecentMessages, loadMessages, loadRecentChanges, saveReply, saveUserMessage } from "./store";
-import { isToolName, ToolInputError, toOp, tools } from "./tools";
+import { runLookup } from "./lookup-tools";
+import { isLookupName, isToolName, ToolInputError, toOp, tools } from "./tools";
 
 let client: Anthropic | undefined;
 /** Created on first use, so a missing key fails a chat turn rather than the build. */
@@ -63,6 +64,7 @@ export async function runTurn({ supabase, userId, tripId, text, dayId, signal, e
     },
   ];
 
+  const tripInfo = itinerary.trip;
   const ctx = editContext(tripId, supabase, "agent");
   const edits: ChatEdit[] = [];
   let reply = "";
@@ -81,8 +83,19 @@ export async function runTurn({ supabase, userId, tripId, text, dayId, signal, e
 
   async function runTool(block: ToolUse): Promise<Anthropic.Beta.BetaToolResultBlockParam> {
     const fail = (message: string) => ({ type: "tool_result" as const, tool_use_id: block.id, is_error: true, content: message });
-    if (!isToolName(block.name)) return fail(`There is no tool called ${block.name}.`);
+    if (!isToolName(block.name) && !isLookupName(block.name)) return fail(`There is no tool called ${block.name}.`);
     try {
+      if (isLookupName(block.name)) {
+        const days = await supabase.from("days").select("number, base_city").eq("trip_id", tripId);
+        if (days.error) throw days.error;
+        const content = await runLookup(block.name, block.input, {
+          supabase,
+          tripId,
+          trip: { destination: tripInfo.destination, startDate: tripInfo.start_date },
+          dayCities: new Map(days.data.map((d) => [d.number, d.base_city])),
+        });
+        return { type: "tool_result", tool_use_id: block.id, content };
+      }
       // Read fresh each time: an earlier edit in this turn may have renumbered the days.
       const [days, trip] = await Promise.all([
         supabase.from("days").select("id, number").eq("trip_id", tripId).order("number"),
