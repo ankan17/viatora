@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import type { OpInput, OpName } from "@/lib/itinerary/schemas";
+import { realDate, type OpInput, type OpName } from "@/lib/itinerary/schemas";
 
 /**
  * The edit tools the chat agent can call. Each one maps onto an op in
@@ -46,6 +46,7 @@ const bookingId = z.uuid().describe("The booking's id, from [booking:…] in the
 const local = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}(T([01]\d|2[0-3]):[0-5]\d)?$/)
+  .refine(realDate, "That date doesn't exist")
   .describe("Local date, YYYY-MM-DD, or local date and time, YYYY-MM-DDTHH:MM. No timezone.");
 const bookingFields = {
   kind: z.enum(["stay", "flight", "rail", "activity", "car", "other"]),

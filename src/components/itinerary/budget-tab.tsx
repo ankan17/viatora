@@ -8,20 +8,10 @@ import { formatCost } from "@/lib/itinerary/group";
 import { useTrip } from "./trip-context";
 
 export function BudgetTab() {
-  const { itinerary, run, pending } = useTrip();
+  const { itinerary } = useTrip();
   const b = budgetOf(itinerary);
   const money = (n: number, c = b.currency) => formatCost(n, c) ?? "0";
-  const [draft, setDraft] = useState(b.total == null ? "" : String(b.total));
-  const [error, setError] = useState<string | null>(null);
   const priced = b.onDays.filter((d) => d.amount > 0);
-
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    const amount = draft.trim() === "" ? null : Number(draft);
-    if (amount != null && (Number.isNaN(amount) || amount < 0)) return setError("Enter the budget as a number.");
-    setError(null);
-    await run("updateTrip", { budgetTotal: amount });
-  }
 
   const over = b.left != null && b.left < 0;
   return (
@@ -34,23 +24,7 @@ export function BudgetTab() {
         )}
       </section>
 
-      {itinerary.canEdit && (
-        <form onSubmit={save} className="flex items-end gap-2">
-          <Field
-            id="budget-total"
-            label={`Budget in ${b.currency}`}
-            className="flex-1"
-            inputMode="decimal"
-            value={draft}
-            error={error ?? undefined}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="3000"
-          />
-          <Button type="submit" variant="secondary" disabled={pending}>
-            Save
-          </Button>
-        </form>
-      )}
+      {itinerary.canEdit && <BudgetForm key={b.total ?? "none"} total={b.total} currency={b.currency} />}
 
       <section aria-label="Where it goes" className="flex flex-col gap-1">
         <h3 className="text-label text-muted">Where it goes</h3>
@@ -92,5 +66,38 @@ function Row({ label, value, strong, tone }: { label: string; value: string; str
       <span className={strong ? "font-bold" : "text-muted"}>{label}</span>
       <span className={`${strong ? "text-heading" : "font-bold"} ${tone === "over" ? "text-plum" : ""}`}>{value}</span>
     </div>
+  );
+}
+
+/** Keyed by the saved budget, so a change made elsewhere (chat, undo) replaces what is typed here. */
+function BudgetForm({ total, currency }: { total: number | null; currency: string }) {
+  const { run, pending } = useTrip();
+  const [draft, setDraft] = useState(total == null ? "" : String(total));
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    const amount = draft.trim() === "" ? null : Number(draft);
+    if (amount != null && (Number.isNaN(amount) || amount < 0)) return setError("Enter the budget as a number.");
+    setError(null);
+    await run("updateTrip", { budgetTotal: amount });
+  }
+
+  return (
+    <form onSubmit={save} className="flex items-end gap-2">
+      <Field
+        id="budget-total"
+        label={`Budget in ${currency}`}
+        className="flex-1"
+        inputMode="decimal"
+        value={draft}
+        error={error ?? undefined}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="3000"
+      />
+      <Button type="submit" variant="secondary" disabled={pending}>
+        Save
+      </Button>
+    </form>
   );
 }

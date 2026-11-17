@@ -19,10 +19,15 @@ function itemLine(item: Item): string {
   return item.notes.trim() ? `${line}\n  notes: ${item.notes.trim().replace(/\s+/g, " ")}` : line;
 }
 
+/** Text people wrote, as one plain line: no line breaks to fake a new section, no angle brackets to close <trip>. */
+const oneLine = (s: string) => s.replace(/[<>]/g, "").replace(/\s+/g, " ").trim();
+
 function packingLine(p: PackingItem): string {
-  const facts = [p.category, p.quantity > 1 ? `x${p.quantity}` : null, p.packed ? "packed" : null].filter(Boolean).join(", ");
-  const why = p.reason.trim() ? ` because ${p.reason.trim().replace(/\s+/g, " ")}` : "";
-  return `- ${p.label}${facts ? ` (${facts})` : ""}${why} [pack:${p.id}]`;
+  const facts = [p.category && oneLine(p.category), p.quantity > 1 ? `x${p.quantity}` : null, p.packed ? "packed" : null]
+    .filter(Boolean)
+    .join(", ");
+  const why = p.reason.trim() ? ` because ${oneLine(p.reason)}` : "";
+  return `- ${oneLine(p.label)}${facts ? ` (${facts})` : ""}${why} [pack:${p.id}]`;
 }
 
 /** Confirmation numbers and links stay out of the snapshot: the model has no use for them. */
@@ -33,10 +38,10 @@ function bookingLine(b: Booking): string {
     b.status,
     when || null,
     formatCost(b.cost_amount, b.cost_currency),
-    b.provider_name,
+    b.provider_name && oneLine(b.provider_name),
     b.confirmation_ref ? "has a confirmation number" : null,
   ];
-  return `- ${b.title} (${facts.filter(Boolean).join(", ")}) [booking:${b.id}]`;
+  return `- ${oneLine(b.title)} (${facts.filter(Boolean).join(", ")}) [booking:${b.id}]`;
 }
 
 function profileLines(p: TripProfile): string[] {
@@ -91,9 +96,11 @@ export function describeTrip(itinerary: Itinerary, recent: RecentChange[] = []):
   lines.push(...(ideas.length ? ideas.map(itemLine) : ["(none)"]));
 
   const b = budgetOf(itinerary);
+  const onDays = Math.round(b.onDays.reduce((a, d) => a + d.amount, 0) * 100) / 100;
   const spend = [
-    `On the days: ${formatCost(b.planned - b.bookings, b.currency) ?? "0"}`,
-    `bookings: ${formatCost(b.bookings, b.currency) ?? "0"}`,
+    `Planned ${formatCost(b.planned, b.currency) ?? "0"}`,
+    `on the days ${formatCost(onDays, b.currency) ?? "0"}`,
+    `bookings ${formatCost(b.bookings, b.currency) ?? "0"}`,
   ];
   if (b.ideas) spend.push(`ideas not counted: ${formatCost(b.ideas, b.currency)}`);
   for (const o of b.other) spend.push(`also ${formatCost(o.amount, o.currency)} (not converted)`);
@@ -101,8 +108,8 @@ export function describeTrip(itinerary: Itinerary, recent: RecentChange[] = []):
   if (b.left != null)
     lines.push(
       b.left >= 0
-        ? `Planned ${formatCost(b.planned, b.currency)} of ${budget}; ${formatCost(b.left, b.currency)} left.`
-        : `Planned ${formatCost(b.planned, b.currency)}, ${formatCost(-b.left, b.currency)} over the ${budget} budget.`,
+        ? `Planned ${formatCost(b.planned, b.currency) ?? "0"} of ${budget}; ${formatCost(b.left, b.currency)} left.`
+        : `Planned ${formatCost(b.planned, b.currency) ?? "0"}, ${formatCost(-b.left, b.currency)} over the ${budget} budget.`,
     );
 
   lines.push("", "Bookings");
@@ -114,7 +121,7 @@ export function describeTrip(itinerary: Itinerary, recent: RecentChange[] = []):
   if (itinerary.ruledOut.length) {
     lines.push("", "Ruled out by the group. Don't suggest these again");
     for (const r of itinerary.ruledOut)
-      lines.push(`- ${r.label}${r.reason.trim() ? ` (${r.reason.trim().replace(/\s+/g, " ")})` : ""} [out:${r.id}]`);
+      lines.push(`- ${oneLine(r.label)}${r.reason.trim() ? ` (${oneLine(r.reason)})` : ""} [out:${r.id}]`);
   }
 
   if (recent.length) {

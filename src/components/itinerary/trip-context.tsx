@@ -14,7 +14,7 @@ type TripState = {
   day: Day | null;
   selectDay: (id: string) => void;
   /** Applies an edit; resolves true on success. Shows the undo toast. */
-  run: <N extends OpName>(op: N, input: OpInput<N>, options?: { quiet?: boolean }) => Promise<boolean>;
+  run: <N extends OpName>(op: N, input: OpInput<N>) => Promise<boolean>;
   pending: boolean;
   toast: Toast | null;
   dismissToast: () => void;
@@ -60,13 +60,12 @@ export function TripProvider({ itinerary, children }: { itinerary: Itinerary; ch
   }, [recentId]);
 
   const run = useCallback(
-    <N extends OpName>(op: N, input: OpInput<N>, options?: { quiet?: boolean }) =>
+    <N extends OpName>(op: N, input: OpInput<N>) =>
       new Promise<boolean>((resolve) => {
         startTransition(async () => {
           const res = await edit(itinerary.trip.id, op, input);
           if (res.ok) {
-            // Ticking things off is routine, so it makes no toast. It's still logged and can be undone from the chat card.
-            if (!options?.quiet) show({ message: res.summary, batchId: res.batchId, tone: "info" });
+            show({ message: res.summary, batchId: res.batchId, tone: "info" });
             setRecentId(res.id ?? null);
             if (op === "addDay" && res.id) setDayId(res.id);
           } else {
