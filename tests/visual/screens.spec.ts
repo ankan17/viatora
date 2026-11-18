@@ -146,7 +146,8 @@ test("chat", async ({ page }, info) => {
   await page.getByRole("button", { name: "Send" }).click();
   await expect(chat.getByText("Ichiran ramen is on Day 1 for the evening.")).toBeVisible();
   await expect(card.getByRole("button", { name: "Undo" })).toBeVisible();
-  if (info.project.name === "desktop") await expect(page.getByRole("complementary", { name: "Itinerary" }).getByRole("button", { name: /Ichiran ramen/ })).toBeVisible();
+  if (info.project.name === "desktop")
+    await expect(page.getByRole("complementary", { name: "Itinerary" }).getByRole("button", { name: /Ichiran ramen/ })).toBeVisible();
   await page.clock.fastForward(5_000);
   await expect(page.getByText("just now")).toHaveCount(0);
   await shot(page, "chat-reply");

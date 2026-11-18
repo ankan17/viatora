@@ -42,7 +42,12 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
             <h2 id="dialog-title" className="text-title">
               {title}
             </h2>
-            <button type="button" onClick={onClose} aria-label="Close" className="-mr-2 flex size-11 items-center justify-center rounded-sm hover:bg-blush">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="-mr-2 flex size-11 items-center justify-center rounded-sm hover:bg-blush"
+            >
               <Close />
             </button>
           </div>

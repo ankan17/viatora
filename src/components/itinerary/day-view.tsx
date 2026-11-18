@@ -28,7 +28,12 @@ export function DayView({ day, showHeading = true }: { day: Day; showHeading?: b
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-heading">{dayTitle(day, itinerary.trip.start_date)}</h3>
           {itinerary.canEdit && (
-            <button type="button" onClick={() => setSettings(true)} aria-label={`Day ${day.number} settings`} className="-mr-2 flex size-11 items-center justify-center rounded-sm hover:bg-blush">
+            <button
+              type="button"
+              onClick={() => setSettings(true)}
+              aria-label={`Day ${day.number} settings`}
+              className="-mr-2 flex size-11 items-center justify-center rounded-sm hover:bg-blush"
+            >
               <More />
             </button>
           )}
@@ -88,16 +93,32 @@ function DaySettings({ day, open, onClose }: { day: Day; open: boolean; onClose:
           act(run("updateDay", { dayId: day.id, baseCity: city || null }));
         }}
       >
-        <Field id="city" name="city" label="Staying in" placeholder="Kyoto" defaultValue={day.base_city ?? ""} maxLength={120} className="flex-1" />
+        <Field
+          id="city"
+          name="city"
+          label="Staying in"
+          placeholder="Kyoto"
+          defaultValue={day.base_city ?? ""}
+          maxLength={120}
+          className="flex-1"
+        />
         <Button type="submit" variant="secondary" disabled={pending}>
           Save
         </Button>
       </form>
       <div className="grid grid-cols-2 gap-2">
-        <Button variant="secondary" disabled={pending || day.number === 1} onClick={() => act(run("moveDay", { dayId: day.id, to: day.number - 1 }))}>
+        <Button
+          variant="secondary"
+          disabled={pending || day.number === 1}
+          onClick={() => act(run("moveDay", { dayId: day.id, to: day.number - 1 }))}
+        >
           Move earlier
         </Button>
-        <Button variant="secondary" disabled={pending || day.number === count} onClick={() => act(run("moveDay", { dayId: day.id, to: day.number + 1 }))}>
+        <Button
+          variant="secondary"
+          disabled={pending || day.number === count}
+          onClick={() => act(run("moveDay", { dayId: day.id, to: day.number + 1 }))}
+        >
           Move later
         </Button>
         <Button variant="secondary" disabled={pending || count >= 60} onClick={() => act(run("addDay", { after: day.number }))}>

@@ -149,7 +149,11 @@ export async function runTurn({ supabase, userId, tripId, text, dayId, signal, e
       const { calls, echo } = afterFallback(message.content);
       if (message.stop_reason === "max_tokens" || message.stop_reason === "model_context_window_exceeded") {
         // A tool input may be cut short, so nothing from this step runs.
-        note(calls.length ? "That was more than I could do in one go. Ask for a smaller piece and I'll carry on." : "I ran out of room there. Ask me to continue.");
+        note(
+          calls.length
+            ? "That was more than I could do in one go. Ask for a smaller piece and I'll carry on."
+            : "I ran out of room there. Ask me to continue.",
+        );
         finished = true;
         break;
       }
@@ -180,7 +184,8 @@ export async function runTurn({ supabase, userId, tripId, text, dayId, signal, e
 
   if (!failure && !signal.aborted) {
     if (!finished) note("That's as far as I can go in one reply. Ask me to continue and I'll pick up from here.");
-    else if (!reply.trim()) note(edits.length ? "Done. The changes are listed below." : "I don't have anything to add to that. Could you put it another way?");
+    else if (!reply.trim())
+      note(edits.length ? "Done. The changes are listed below." : "I don't have anything to add to that. Could you put it another way?");
   }
 
   // Stored even after a failure or a stop, so edits that did land keep their undo card.
@@ -218,13 +223,17 @@ function describeFailure(e: unknown): string {
   if (e instanceof Anthropic.RateLimitError || (e instanceof Anthropic.APIError && e.status === 529)) {
     return "I'm getting a lot of requests right now. Try again in a moment.";
   }
-  if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return "Chat isn't set up on this server yet.";
+  if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError)
+    return "Chat isn't set up on this server yet.";
   if (e instanceof Anthropic.APIConnectionError) return "I couldn't reach the planner just now. Check your connection and try again.";
   if (e instanceof Anthropic.APIError) return generic;
   // No key, token or profile at all. The stream helper wraps every other kind of
   // error the same way (a dropped connection, a cut-off tool input), so the
   // message is the only thing that tells this one apart.
-  if (e instanceof Error && /Could not resolve authentication method/.test(`${e.message} ${e.cause instanceof Error ? e.cause.message : ""}`)) {
+  if (
+    e instanceof Error &&
+    /Could not resolve authentication method/.test(`${e.message} ${e.cause instanceof Error ? e.cause.message : ""}`)
+  ) {
     return "Chat isn't set up on this server yet.";
   }
   return generic;

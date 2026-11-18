@@ -54,7 +54,14 @@ export async function getWeather(at: Coordinates, date: string, today: Date = ne
     const high = daily?.temperature_2m_max?.[0];
     const low = daily?.temperature_2m_min?.[0];
     if (high == null || low == null) throw new LookupError("There's no forecast for that day yet.");
-    return { kind: "forecast", date, high: Math.round(high), low: Math.round(low), rainChance: daily?.precipitation_probability_max?.[0] ?? null, sky: sky(daily?.weather_code?.[0]) };
+    return {
+      kind: "forecast",
+      date,
+      high: Math.round(high),
+      low: Math.round(low),
+      rainChance: daily?.precipitation_probability_max?.[0] ?? null,
+      sky: sky(daily?.weather_code?.[0]),
+    };
   }
 
   // The week around the same date in each of five recent years, leaving out any
@@ -80,7 +87,8 @@ export async function getWeather(at: Coordinates, date: string, today: Date = ne
   );
   const weeks = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   if (weeks.length === 0 && results.length > 0) throw new LookupError("The weather record isn't available right now.");
-  const all = (pick: (d: Daily) => (number | null)[] | undefined) => weeks.flatMap((w) => (w.daily ? (pick(w.daily) ?? []) : [])).filter((v): v is number => v != null);
+  const all = (pick: (d: Daily) => (number | null)[] | undefined) =>
+    weeks.flatMap((w) => (w.daily ? (pick(w.daily) ?? []) : [])).filter((v): v is number => v != null);
   const highs = all((d) => d.temperature_2m_max);
   const lows = all((d) => d.temperature_2m_min);
   const rain = all((d) => d.precipitation_sum);
@@ -104,6 +112,8 @@ export function describeWeather(w: Weather, place: string, dayLabel: string): st
     return `Forecast for ${place} on ${dayLabel}: ${w.sky}, high ${w.high}°C, low ${w.low}°C${rain}. Source: Open-Meteo.`;
   }
   const rain = w.wetDaysInTen == null ? "" : `, with rain on about ${w.wetDaysInTen} days in 10`;
-  const lead = w.inPast ? `That day has passed. In ${place} that week was typically` : `Too far from ${dayLabel} for a forecast. In ${place} that week is typically`;
+  const lead = w.inPast
+    ? `That day has passed. In ${place} that week was typically`
+    : `Too far from ${dayLabel} for a forecast. In ${place} that week is typically`;
   return `${lead} ${w.high}°C by day and ${w.low}°C at night${rain} (${w.years}). Source: Open-Meteo historical data.`;
 }

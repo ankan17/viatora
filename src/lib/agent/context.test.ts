@@ -36,7 +36,17 @@ const trip: Itinerary = {
       notes: "",
       items: [
         item({ id: "i-eve", title: "Gion walk", slot: "evening", status: "idea", position: 1 }),
-        item({ id: "i-lunch", title: "Lunch at Nishiki", type: "food", start_time: "12:30:00", end_time: "13:30:00", cost_amount: 40, cost_currency: "USD", notes: "Bring\ncash", position: 2 }),
+        item({
+          id: "i-lunch",
+          title: "Lunch at Nishiki",
+          type: "food",
+          start_time: "12:30:00",
+          end_time: "13:30:00",
+          cost_amount: 40,
+          cost_currency: "USD",
+          notes: "Bring\ncash",
+          position: 2,
+        }),
       ],
     },
     { id: "d2", number: 2, base_city: null, notes: "", items: [] },
@@ -72,7 +82,10 @@ describe("the trip as the model sees it", () => {
   });
 
   it("passes on the clashes the app found in a day", () => {
-    const clash = { ...trip, days: [{ ...trip.days[0], items: [...trip.days[0].items, item({ id: "i-tour", title: "Market tour", start_time: "13:00:00" })] }] };
+    const clash = {
+      ...trip,
+      days: [{ ...trip.days[0], items: [...trip.days[0].items, item({ id: "i-tour", title: "Market tour", start_time: "13:00:00" })] }],
+    };
     expect(describeTrip(clash)).toContain("Check: Lunch at Nishiki runs until 13:30, but Market tour starts at 13:00.");
     expect(text).not.toContain("Check:");
   });
@@ -83,7 +96,11 @@ describe("the trip as the model sees it", () => {
   });
 
   it("copes with a trip that has no dates, profile or ideas", () => {
-    const bare = describeTrip({ ...trip, trip: { ...trip.trip, destination: null, start_date: null, budget_total: null, profile: {} }, ideas: [] });
+    const bare = describeTrip({
+      ...trip,
+      trip: { ...trip.trip, destination: null, start_date: null, budget_total: null, profile: {} },
+      ideas: [],
+    });
     expect(bare).toContain("Trip: Kyoto in spring\nDates: not set, 2 days\nCurrency: USD. Budget: not set.");
     expect(bare).toContain("Profile\nNothing saved yet.");
     expect(bare).toContain("Day 2\n(nothing planned)");

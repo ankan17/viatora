@@ -35,11 +35,7 @@ const checkTimes = (v: { startTime?: string | null; endTime?: string | null }) =
 const timesMessage = { message: "The end time needs a start time before it", path: ["endTime"] };
 
 export const schemas = {
-  addItem: itemFields
-    .partial()
-    .required({ title: true })
-    .extend({ dayId: id.nullable() })
-    .refine(checkTimes, timesMessage),
+  addItem: itemFields.partial().required({ title: true }).extend({ dayId: id.nullable() }).refine(checkTimes, timesMessage),
   updateItem: z.object({ itemId: id, patch: itemFields.partial().refine(checkTimes, timesMessage) }),
   deleteItem: z.object({ itemId: id }),
   moveItem: z.object({ itemId: id, direction: z.enum(["earlier", "later"]) }),
@@ -51,7 +47,10 @@ export const schemas = {
     name: z.string().trim().min(1, "Give it a name").max(120).optional(),
     destination: z.string().trim().max(200).nullable().optional(),
     startDate: z.iso.date().nullable().optional(),
-    currency: z.string().regex(/^[A-Z]{3}$/).optional(),
+    currency: z
+      .string()
+      .regex(/^[A-Z]{3}$/)
+      .optional(),
     budgetTotal: amount.optional(),
   }),
   /** Fields given replace what is stored; preferences are added and removed one by one. */

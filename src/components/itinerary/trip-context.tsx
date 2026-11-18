@@ -110,7 +110,10 @@ export function TripProvider({ itinerary, children }: { itinerary: Itinerary; ch
 export function UndoToast() {
   const { toast, undoLast, dismissToast, pending } = useTrip();
   return (
-    <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(max(env(safe-area-inset-bottom),12px)+72px)] z-50 flex justify-center px-4 lg:bottom-6">
+    <div
+      aria-live="polite"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(max(env(safe-area-inset-bottom),12px)+72px)] z-50 flex justify-center px-4 lg:bottom-6"
+    >
       {toast && (
         <div
           role="status"

@@ -70,7 +70,25 @@ const KINDS: [ItemType, string[]][] = [
   ["food", ["restaurant", "cafe", "bar", "pub", "fast food", "food court", "ice cream", "bakery", "biergarten", "izakaya"]],
   ["stay", ["hotel", "hostel", "guest house", "motel", "apartment", "chalet", "camp site"]],
   ["transit", ["station", "bus station", "ferry terminal", "aerodrome", "stop", "halt", "tram stop", "subway entrance"]],
-  ["sight", ["museum", "attraction", "viewpoint", "place of worship", "castle", "monument", "memorial", "gallery", "artwork", "ruins", "zoo", "theme park", "park", "garden"]],
+  [
+    "sight",
+    [
+      "museum",
+      "attraction",
+      "viewpoint",
+      "place of worship",
+      "castle",
+      "monument",
+      "memorial",
+      "gallery",
+      "artwork",
+      "ruins",
+      "zoo",
+      "theme park",
+      "park",
+      "garden",
+    ],
+  ],
 ];
 
 /** The kind of itinerary item a place most likely is. */

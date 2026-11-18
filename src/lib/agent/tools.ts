@@ -15,10 +15,16 @@ const kind = z
   .enum(["activity", "sight", "food", "stay", "transit", "flight", "rail", "note"])
   .describe("What kind of thing it is. 'stay' is where they sleep; 'transit' is getting around; 'rail' is a train.");
 const partOfDay = z.enum(["morning", "afternoon", "evening", "night"]);
-const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).describe("24-hour local time, HH:MM.");
+const time = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+  .describe("24-hour local time, HH:MM.");
 const status = z.enum(["idea", "planned", "booked"]);
 const cost = z.number().nonnegative().max(10_000_000);
-const currency = z.string().regex(/^[A-Z]{3}$/).describe("ISO currency code. Defaults to the trip's currency.");
+const currency = z
+  .string()
+  .regex(/^[A-Z]{3}$/)
+  .describe("ISO currency code. Defaults to the trip's currency.");
 const notes = z.string().max(2000);
 
 const itemFields = {
@@ -41,16 +47,28 @@ export const toolSchemas = {
   remove_item: z.object({ item_id: itemId }),
   reorder_item: z.object({ item_id: itemId, direction: z.enum(["earlier", "later"]) }),
   add_day: z.object({
-    after_day: z.number().int().min(0).max(60).optional().describe("Insert after this day number; 0 puts it first. Leave out to add at the end."),
+    after_day: z
+      .number()
+      .int()
+      .min(0)
+      .max(60)
+      .optional()
+      .describe("Insert after this day number; 0 puts it first. Leave out to add at the end."),
   }),
   remove_day: z.object({ day: dayNumber }),
   move_day: z.object({ day: dayNumber, to: dayNumber.describe("The position it should end up at.") }),
-  set_day_city: z.object({ day: dayNumber, city: z.string().trim().max(120).nullable().describe("Where they sleep that night, or null to clear it.") }),
+  set_day_city: z.object({
+    day: dayNumber,
+    city: z.string().trim().max(120).nullable().describe("Where they sleep that night, or null to clear it."),
+  }),
   update_trip: z.object({
     name: z.string().trim().min(1).max(120).optional(),
     destination: z.string().trim().max(200).nullable().optional(),
     start_date: z.iso.date().nullable().optional().describe("First day, YYYY-MM-DD, or null to clear the dates."),
-    currency: z.string().regex(/^[A-Z]{3}$/).optional(),
+    currency: z
+      .string()
+      .regex(/^[A-Z]{3}$/)
+      .optional(),
     budget: cost.nullable().optional().describe("Total budget for the group, in the trip's currency."),
   }),
   update_profile: z.object({
@@ -62,16 +80,31 @@ export const toolSchemas = {
     interests: z.array(z.string().trim().min(1).max(60)).max(30).optional().describe("The full list; it replaces the saved one."),
     dietary: z.array(z.string().trim().min(1).max(60)).max(20).optional().describe("The full list; it replaces the saved one."),
     accessibility: z.string().trim().max(500).nullable().optional(),
-    add_preferences: z.array(z.string().trim().min(1).max(200)).max(10).optional().describe("Lasting preferences in the group's words, e.g. 'No early starts'."),
-    remove_preferences: z.array(z.string().trim().min(1).max(200)).max(50).optional().describe("Saved preferences to drop, exactly as shown in the snapshot."),
+    add_preferences: z
+      .array(z.string().trim().min(1).max(200))
+      .max(10)
+      .optional()
+      .describe("Lasting preferences in the group's words, e.g. 'No early starts'."),
+    remove_preferences: z
+      .array(z.string().trim().min(1).max(200))
+      .max(50)
+      .optional()
+      .describe("Saved preferences to drop, exactly as shown in the snapshot."),
   }),
 } as const;
 
 /** Read-only: these look something up and return text. They never change the trip. */
 export const lookupSchemas = {
   search_places: z.object({
-    query: z.string().trim().min(2).max(120).describe("What to look for: a name ('Fushimi Inari') or a kind of place ('ramen', 'bookshop')."),
-    near_day: dayNumber.optional().describe("Prefer places near the city where the group stays on this day. Leave out to search near the trip's destination."),
+    query: z
+      .string()
+      .trim()
+      .min(2)
+      .max(120)
+      .describe("What to look for: a name ('Fushimi Inari') or a kind of place ('ramen', 'bookshop')."),
+    near_day: dayNumber
+      .optional()
+      .describe("Prefer places near the city where the group stays on this day. Leave out to search near the trip's destination."),
   }),
   get_weather: z.object({ day: dayNumber.describe("The trip day to get the weather for. The trip needs dates.") }),
   travel_time: z.object({
@@ -86,15 +119,15 @@ export const isLookupName = (name: string): name is LookupName => name in lookup
 const lookupDescriptions: Record<LookupName, string> = {
   search_places:
     "Search real places by name or kind. Returns up to five with a place_id each; pass a place_id to add_item or update_item to pin the item to it. Data is from OpenStreetMap: names, kinds and locations only. It has no ratings, opening hours or prices, so don't claim any.",
-  get_weather: "Weather for a trip day: a forecast when the day is within about two weeks, otherwise what that week has typically been like.",
+  get_weather:
+    "Weather for a trip day: a forecast when the day is within about two weeks, otherwise what that week has typically been like.",
   travel_time: "Rough travel time between two items that both have a place, estimated from the distance. Not a route or a timetable.",
 };
 
 export type ToolName = keyof typeof toolSchemas;
 
 const descriptions: Record<ToolName, string> = {
-  add_item:
-    "Add something to a day, or to the ideas list when no day is given. Call it once per item. Returns the new item's id.",
+  add_item: "Add something to a day, or to the ideas list when no day is given. Call it once per item. Returns the new item's id.",
   update_item:
     "Change an item: rename it, move it to another day or back to ideas, set its timing, status, cost or notes. Only include the fields that change.",
   remove_item: "Delete an item from the itinerary.",
@@ -154,7 +187,9 @@ export function toOp(name: ToolName, raw: unknown, trip: { dayIds: ReadonlyMap<n
     const result = toolSchemas[n].safeParse(raw);
     if (!result.success) {
       const issue = result.error.issues[0];
-      throw new ToolInputError(`Invalid input${issue?.path.length ? ` at ${issue.path.join(".")}` : ""}: ${issue?.message ?? "check the fields"}`);
+      throw new ToolInputError(
+        `Invalid input${issue?.path.length ? ` at ${issue.path.join(".")}` : ""}: ${issue?.message ?? "check the fields"}`,
+      );
     }
     return result.data as z.output<(typeof toolSchemas)[N]>;
   };

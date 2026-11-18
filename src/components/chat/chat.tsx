@@ -105,7 +105,8 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
         for (const line of lines) if (line) handle(JSON.parse(line) as TurnEvent);
       }
     } catch (e) {
-      if (!controller.signal.aborted) setError(e instanceof SendError ? e.message : "The connection dropped. Check the plan, then try again.");
+      if (!controller.signal.aborted)
+        setError(e instanceof SendError ? e.message : "The connection dropped. Check the plan, then try again.");
     } finally {
       // Not stored (stopped early, or it failed before saving): give the words back.
       if (reply.sent) setDraft((current) => current || reply.sent!);
@@ -113,7 +114,10 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
         // Stopped or cut off. Show what arrived until the stored reply replaces it;
         // the server stores it a moment after it notices, so look more than once.
         if (reply.text || reply.edits.length) {
-          setMessages((m) => [...m, { id: `local-${Date.now()}`, role: "assistant", text: reply.text, edits: reply.edits, batchId: null, undone: false }]);
+          setMessages((m) => [
+            ...m,
+            { id: `local-${Date.now()}`, role: "assistant", text: reply.text, edits: reply.edits, batchId: null, undone: false },
+          ]);
         }
         for (const delay of [800, 2_500, 6_000]) setTimeout(() => router.refresh(), delay);
       }
@@ -137,7 +141,11 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
   const empty = messages.length === 0 && !pending;
   const place = trip.destination ?? "this trip";
   const dayName = day ? `Day ${day.number}` : "your trip";
-  const suggestions = [day ? `Suggest a plan for Day ${day.number}` : "Suggest a plan", "Add a few ideas to pick from", "What should we sort out first?"];
+  const suggestions = [
+    day ? `Suggest a plan for Day ${day.number}` : "Suggest a plan",
+    "Add a few ideas to pick from",
+    "What should we sort out first?",
+  ];
 
   return (
     <section aria-label="Chat" className="flex min-h-0 flex-1 flex-col">
@@ -182,7 +190,11 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
                 {pending && (
                   <li className="flex flex-col items-start gap-2">
                     <span className="sr-only">Viatora:</span>
-                    {pending.text ? <Text role="assistant" text={pending.text} /> : <p className="animate-pulse px-1 text-caption text-muted">Thinking…</p>}
+                    {pending.text ? (
+                      <Text role="assistant" text={pending.text} />
+                    ) : (
+                      <p className="animate-pulse px-1 text-caption text-muted">Thinking…</p>
+                    )}
                     {pending.edits.length > 0 && <ChangeCard edits={pending.edits} />}
                   </li>
                 )}
@@ -212,11 +224,21 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
               className="max-h-32 min-h-11 flex-1 resize-none bg-transparent py-2.5 text-body text-ink outline-none [field-sizing:content] placeholder:text-muted"
             />
             {pending ? (
-              <button type="button" onClick={() => abort.current?.abort()} aria-label="Stop" className="flex size-11 shrink-0 items-center justify-center rounded-full border border-outline text-ink hover:bg-blush">
+              <button
+                type="button"
+                onClick={() => abort.current?.abort()}
+                aria-label="Stop"
+                className="flex size-11 shrink-0 items-center justify-center rounded-full border border-outline text-ink hover:bg-blush"
+              >
                 <Stop width={18} height={18} />
               </button>
             ) : (
-              <button type="submit" disabled={!draft.trim()} aria-label="Send" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-plum text-on-plum transition-opacity hover:opacity-90 disabled:opacity-40">
+              <button
+                type="submit"
+                disabled={!draft.trim()}
+                aria-label="Send"
+                className="flex size-11 shrink-0 items-center justify-center rounded-full bg-plum text-on-plum transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
                 <ArrowUp width={20} height={20} />
               </button>
             )}
@@ -257,7 +279,9 @@ function Message({ message, tripId, canUndo }: { message: ChatMessage; tripId: s
     <li className="flex flex-col items-start gap-2">
       <span className="sr-only">Viatora:</span>
       {message.text && <Text role="assistant" text={message.text} />}
-      {message.edits.length > 0 && <ChangeCard edits={message.edits} tripId={tripId} batchId={canUndo ? message.batchId : null} undone={message.undone} />}
+      {message.edits.length > 0 && (
+        <ChangeCard edits={message.edits} tripId={tripId} batchId={canUndo ? message.batchId : null} undone={message.undone} />
+      )}
     </li>
   );
 }
@@ -280,8 +304,14 @@ function ChangeCard({ edits, tripId, batchId, undone }: { edits: ChatEdit[]; tri
   };
 
   return (
-    <div role="group" aria-label="Changes to the plan" className="flex w-full max-w-[85%] flex-col rounded-md border border-hairline bg-raised px-3 pt-2.5">
-      <p className="text-label text-muted">{done ? "Undone" : edits.length === 1 ? "Changed the plan" : `${edits.length} changes to the plan`}</p>
+    <div
+      role="group"
+      aria-label="Changes to the plan"
+      className="flex w-full max-w-[85%] flex-col rounded-md border border-hairline bg-raised px-3 pt-2.5"
+    >
+      <p className="text-label text-muted">
+        {done ? "Undone" : edits.length === 1 ? "Changed the plan" : `${edits.length} changes to the plan`}
+      </p>
       <ul className={cn("flex flex-col gap-0.5 pt-1 text-body", done && "text-muted line-through")}>
         {edits.map((e, i) => (
           <li key={i}>{e.summary}</li>
@@ -293,7 +323,12 @@ function ChangeCard({ edits, tripId, batchId, undone }: { edits: ChatEdit[]; tri
         </p>
       )}
       {tripId && batchId && !done ? (
-        <button type="button" onClick={onUndo} disabled={working} className="-ml-3 min-h-11 self-start rounded-sm px-3 font-bold text-plum hover:bg-blush disabled:opacity-60">
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={working}
+          className="-ml-3 min-h-11 self-start rounded-sm px-3 font-bold text-plum hover:bg-blush disabled:opacity-60"
+        >
           {edits.length === 1 ? "Undo" : "Undo all"}
         </button>
       ) : (

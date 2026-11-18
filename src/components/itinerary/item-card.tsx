@@ -34,7 +34,12 @@ export function ItemCard({ item }: { item: Item }) {
 
   if (!itinerary.canEdit) return <div className={cls}>{body}</div>;
   return (
-    <button type="button" className={cn(cls, "hover:border-outline")} onClick={() => setEditor({ mode: "edit", item })} aria-label={`${item.title}, ${details}, ${item.status}. Edit`}>
+    <button
+      type="button"
+      className={cn(cls, "hover:border-outline")}
+      onClick={() => setEditor({ mode: "edit", item })}
+      aria-label={`${item.title}, ${details}, ${item.status}. Edit`}
+    >
       {body}
     </button>
   );
@@ -44,16 +49,30 @@ export function ItemCard({ item }: { item: Item }) {
 export function IdeaCard({ item, onPlace }: { item: Item; onPlace: (item: Item) => void }) {
   const { itinerary, setEditor, recentId } = useTrip();
   return (
-    <div className={cn("flex min-h-12 items-center gap-2 rounded-md border border-dashed border-outline bg-raised pl-3 pr-1", recentId === item.id && "border-2 border-solid border-plum")}>
+    <div
+      className={cn(
+        "flex min-h-12 items-center gap-2 rounded-md border border-dashed border-outline bg-raised pl-3 pr-1",
+        recentId === item.id && "border-2 border-solid border-plum",
+      )}
+    >
       {itinerary.canEdit ? (
-        <button type="button" onClick={() => setEditor({ mode: "edit", item })} className="flex min-h-11 flex-1 items-center text-left font-bold">
+        <button
+          type="button"
+          onClick={() => setEditor({ mode: "edit", item })}
+          className="flex min-h-11 flex-1 items-center text-left font-bold"
+        >
           {item.title}
         </button>
       ) : (
         <span className="flex-1 font-bold">{item.title}</span>
       )}
       {itinerary.canEdit && (
-        <button type="button" onClick={() => onPlace(item)} aria-label={`Add ${item.title} to a day`} className="flex size-11 items-center justify-center rounded-sm text-plum hover:bg-blush">
+        <button
+          type="button"
+          onClick={() => onPlace(item)}
+          aria-label={`Add ${item.title} to a day`}
+          className="flex size-11 items-center justify-center rounded-sm text-plum hover:bg-blush"
+        >
           <Plus />
         </button>
       )}
