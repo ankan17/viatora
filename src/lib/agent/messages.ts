@@ -79,6 +79,12 @@ export function mergeMessages(server: ChatMessage[], local: ChatMessage[], added
   return [...server, ...extra];
 }
 
+/** True once the list holds an assistant message after the traveller's message `userId`: the turn's reply is already stored. */
+export function replyStored(messages: ChatMessage[], userId: string): boolean {
+  const at = messages.findIndex((m) => m.id === userId);
+  return at >= 0 && messages.slice(at + 1).some((m) => m.role === "assistant");
+}
+
 export const isUnsaved = (m: ChatMessage) => m.id.startsWith("local-");
 
 /** Adds a message unless it is already there. */
