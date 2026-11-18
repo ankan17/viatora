@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendMessage, fromRow, mergeMessages, toHistory, toParts, type ChatMessage } from "./messages";
+import { appendMessage, fromRow, mergeMessages, replyStored, toHistory, toParts, type ChatMessage } from "./messages";
 import { HISTORY_MESSAGE_LENGTH } from "./model";
 
 describe("stored messages", () => {
@@ -108,5 +108,15 @@ describe("joining the stored list with this session's messages", () => {
     const list = [message({ id: "u1" })];
     expect(appendMessage(list, message({ id: "u1" }))).toBe(list);
     expect(ids(appendMessage(list, message({ id: "a2" })))).toEqual(["u1", "a2"]);
+  });
+});
+
+describe("replyStored", () => {
+  it("is true only once an assistant message follows the traveller's message", () => {
+    const u = message({ id: "u1" });
+    const a = message({ id: "a1", role: "assistant" });
+    expect(replyStored([message({ id: "m0", role: "assistant" }), u], "u1")).toBe(false);
+    expect(replyStored([u, a], "u1")).toBe(true);
+    expect(replyStored([a], "u1")).toBe(false);
   });
 });

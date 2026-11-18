@@ -7,12 +7,17 @@ import { useTrip } from "@/components/itinerary/trip-context";
 import { buttonClass } from "@/components/ui/button";
 import { ArrowUp, Stop } from "@/components/ui/icons";
 import type { TurnEvent } from "@/lib/agent/events";
-import { appendMessage, mergeMessages, type ChatEdit, type ChatMessage } from "@/lib/agent/messages";
+import { appendMessage, mergeMessages, replyStored, type ChatEdit, type ChatMessage } from "@/lib/agent/messages";
 import { MAX_MESSAGE_LENGTH } from "@/lib/agent/model";
 import { cn } from "@/lib/cn";
 
 /** The turn in flight: what the traveller sent and the reply as it arrives. */
-type Pending = { sent: string | null; text: string; edits: ChatEdit[] };
+type Pending = {
+  sent: string | null;
+  text: string;
+  edits: ChatEdit[];
+  /** The stored message for what they sent, once it has arrived. */ userId?: string;
+};
 
 /**
  * The chat with the planning agent. The server's list of messages is the truth
@@ -67,7 +72,7 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
 
     const handle = (event: TurnEvent) => {
       if (event.type === "user") {
-        reply = { ...reply, sent: null };
+        reply = { ...reply, sent: null, userId: event.message.id };
         arrived(event.message);
       } else if (event.type === "text") {
         reply = { ...reply, text: reply.text + event.delta };
@@ -138,6 +143,10 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
     send(draft);
   };
 
+  // The stored reply can join the list before the stream has closed (its last event
+  // arrives first, or a refresh brings it). Drawing the streamed copy as well would
+  // show the reply, and its change card, twice for a moment.
+  const live = pending && !(pending.userId && replyStored(messages, pending.userId)) ? pending : null;
   const empty = messages.length === 0 && !pending;
   const place = trip.destination ?? "this trip";
   const dayName = day ? `Day ${day.number}` : "your trip";
@@ -187,15 +196,15 @@ export function Chat({ initialMessages }: { initialMessages: ChatMessage[] }) {
                   <Message key={m.id} message={m} tripId={trip.id} canUndo={itinerary.canEdit} />
                 ))}
                 {pending?.sent && <Bubble role="user" text={pending.sent} />}
-                {pending && (
+                {live && (
                   <li className="flex flex-col items-start gap-2">
                     <span className="sr-only">Viatora:</span>
-                    {pending.text ? (
-                      <Text role="assistant" text={pending.text} />
+                    {live.text ? (
+                      <Text role="assistant" text={live.text} />
                     ) : (
                       <p className="animate-pulse px-1 text-caption text-muted">Thinking…</p>
                     )}
-                    {pending.edits.length > 0 && <ChangeCard edits={pending.edits} />}
+                    {live.edits.length > 0 && <ChangeCard edits={live.edits} />}
                   </li>
                 )}
               </ol>
