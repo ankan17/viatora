@@ -12,6 +12,8 @@ export default defineConfig({
       { resolve: { alias }, test: { name: "unit", include: ["src/**/*.test.ts"], environment: "node" } },
       // Needs the local Supabase stack: `pnpm db:start`.
       { resolve: { alias }, test: { name: "db", include: ["tests/db/**/*.test.ts"], environment: "node", testTimeout: 20_000 } },
+      // Model evals: slow, cost money against real APIs. Run with `pnpm eval`, never as part of the tests.
+      { resolve: { alias }, test: { name: "eval", include: ["evals/**/*.eval.ts"], environment: "node" } },
     ],
   },
 });
