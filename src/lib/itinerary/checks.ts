@@ -32,7 +32,11 @@ export function checkDay(items: Item[]): DayCheck[] {
     for (const second of timed.slice(i + 1)) {
       const start = hhmm(second.start_time)!;
       if (second.start_time === first.start_time) {
-        checks.push({ kind: "same-start", itemIds: [first.id, second.id], message: `${first.title} and ${second.title} both start at ${start}.` });
+        checks.push({
+          kind: "same-start",
+          itemIds: [first.id, second.id],
+          message: `${first.title} and ${second.title} both start at ${start}.`,
+        });
       } else if (first.end_time && minutes(second.start_time!) < endMinutes(first)) {
         checks.push({
           kind: "overlap",

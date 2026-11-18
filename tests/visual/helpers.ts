@@ -45,13 +45,39 @@ export async function seedPlannedTrip(db: Client): Promise<string> {
 
   const items = [
     { day_id: day1, title: "Fushimi Inari Shrine", type: "sight", slot: "morning", status: "planned" },
-    { day_id: day1, title: "Lunch at Nishiki Market", type: "food", start_time: "12:30", end_time: "13:30", status: "planned", cost_amount: 40, cost_currency: "USD" },
-    { day_id: day1, title: "Kiyomizu-dera", type: "sight", slot: "afternoon", status: "booked", cost_amount: 4.5, cost_currency: "USD", notes: "Tickets are on the phone. Go in by the west gate." },
+    {
+      day_id: day1,
+      title: "Lunch at Nishiki Market",
+      type: "food",
+      start_time: "12:30",
+      end_time: "13:30",
+      status: "planned",
+      cost_amount: 40,
+      cost_currency: "USD",
+    },
+    {
+      day_id: day1,
+      title: "Kiyomizu-dera",
+      type: "sight",
+      slot: "afternoon",
+      status: "booked",
+      cost_amount: 4.5,
+      cost_currency: "USD",
+      notes: "Tickets are on the phone. Go in by the west gate.",
+    },
     { day_id: day1, title: "Evening walk through Gion", type: "activity", slot: "evening", status: "idea" },
     { day_id: day1, title: "Machiya guesthouse", type: "stay", status: "booked", cost_amount: 180, cost_currency: "USD" },
     { day_id: null, title: "Arashiyama bamboo grove", type: "sight", status: "idea" },
     { day_id: null, title: "Tea ceremony", type: "activity", status: "idea" },
   ] as const;
-  ok(await db.from("items").insert(items.map((item, i) => ({ ...item, trip_id: tripId, position: i + 1 })), { defaultToNull: false }).select("id"));
+  ok(
+    await db
+      .from("items")
+      .insert(
+        items.map((item, i) => ({ ...item, trip_id: tripId, position: i + 1 })),
+        { defaultToNull: false },
+      )
+      .select("id"),
+  );
   return tripId;
 }

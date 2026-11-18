@@ -19,12 +19,28 @@ if (docker("version", "--format", "{{.Server.Version}}").status !== 0) {
 }
 
 const started = docker(
-  "run", "--detach", "--rm", "--init", "--ipc=host",
-  "--name", name,
-  "--publish", `127.0.0.1:${port}:${port}`,
-  "--workdir", "/home/pwuser", "--user", "pwuser",
+  "run",
+  "--detach",
+  "--rm",
+  "--init",
+  "--ipc=host",
+  "--name",
+  name,
+  "--publish",
+  `127.0.0.1:${port}:${port}`,
+  "--workdir",
+  "/home/pwuser",
+  "--user",
+  "pwuser",
   image,
-  "npx", "-y", `playwright@${version}`, "run-server", "--port", String(port), "--host", "0.0.0.0",
+  "npx",
+  "-y",
+  `playwright@${version}`,
+  "run-server",
+  "--port",
+  String(port),
+  "--host",
+  "0.0.0.0",
 );
 if (started.status !== 0) {
   console.error(started.stderr);

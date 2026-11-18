@@ -22,7 +22,9 @@ const item = (title: string, start: string | null, end: string | null = null, o:
 
 describe("checking a day's times", () => {
   it("finds nothing wrong with plans that follow one another", () => {
-    expect(checkDay([item("Shrine", "09:00", "11:00"), item("Lunch", "11:00", "12:00"), item("Walk", null), item("Museum", "14:00")])).toEqual([]);
+    expect(
+      checkDay([item("Shrine", "09:00", "11:00"), item("Lunch", "11:00", "12:00"), item("Walk", null), item("Museum", "14:00")]),
+    ).toEqual([]);
   });
 
   it("flags a plan that runs into the next one", () => {
@@ -32,7 +34,10 @@ describe("checking a day's times", () => {
   });
 
   it("flags two plans that start together", () => {
-    expect(checkDay([item("Tea", "15:00"), item("Temple", "15:00")])[0]).toMatchObject({ kind: "same-start", message: "Tea and Temple both start at 15:00." });
+    expect(checkDay([item("Tea", "15:00"), item("Temple", "15:00")])[0]).toMatchObject({
+      kind: "same-start",
+      message: "Tea and Temple both start at 15:00.",
+    });
   });
 
   it("compares a long plan with everything inside it, not just the next one", () => {
@@ -56,6 +61,12 @@ describe("checking a day's times", () => {
   });
 
   it("leaves out where you sleep and notes", () => {
-    expect(checkDay([item("Guesthouse", "15:00", "23:00", { type: "stay" }), item("Dinner", "19:00"), item("Remember passports", "19:00", null, { type: "note" })])).toEqual([]);
+    expect(
+      checkDay([
+        item("Guesthouse", "15:00", "23:00", { type: "stay" }),
+        item("Dinner", "19:00"),
+        item("Remember passports", "19:00", null, { type: "note" }),
+      ]),
+    ).toEqual([]);
   });
 });

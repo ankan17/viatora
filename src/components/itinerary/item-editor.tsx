@@ -25,7 +25,11 @@ type Form = {
   notes: string;
 };
 
-const WHEN_OPTIONS: { value: When; label: string }[] = [{ value: "any", label: "Any time" }, ...SLOTS, { value: "time", label: "At a time" }];
+const WHEN_OPTIONS: { value: When; label: string }[] = [
+  { value: "any", label: "Any time" },
+  ...SLOTS,
+  { value: "time", label: "At a time" },
+];
 const IDEAS = "ideas";
 
 function fromItem(item: Item | null, dayId: string | null, currency: string): Form {
@@ -119,7 +123,16 @@ function EditorForm({ onDone }: { onDone: () => void }) {
 
   return (
     <form onSubmit={submit} className="flex max-h-[calc(90dvh-80px)] flex-col gap-4 overflow-y-auto pb-1">
-      <Field id="item-title" label="What" value={f.title} onChange={(e) => set("title", e.target.value)} required maxLength={200} placeholder="Fushimi Inari Shrine" autoFocus={!item} />
+      <Field
+        id="item-title"
+        label="What"
+        value={f.title}
+        onChange={(e) => set("title", e.target.value)}
+        required
+        maxLength={200}
+        placeholder="Fushimi Inari Shrine"
+        autoFocus={!item}
+      />
       <div className="grid grid-cols-2 gap-3">
         <Select id="item-type" label="Kind" value={f.type} onChange={(e) => set("type", e.target.value as ItemType)}>
           {ITEM_TYPES.map((t) => (
@@ -141,19 +154,54 @@ function EditorForm({ onDone }: { onDone: () => void }) {
       <ChoiceChips name="when" label="When" options={WHEN_OPTIONS} value={f.when} onChange={(v) => set("when", v)} />
       {f.when === "time" && (
         <div className="grid grid-cols-2 gap-3">
-          <Field id="item-start" label="Starts" type="time" value={f.startTime} onChange={(e) => set("startTime", e.target.value)} required />
-          <Field id="item-end" label="Ends" hint="Optional" type="time" value={f.endTime} onChange={(e) => set("endTime", e.target.value)} />
+          <Field
+            id="item-start"
+            label="Starts"
+            type="time"
+            value={f.startTime}
+            onChange={(e) => set("startTime", e.target.value)}
+            required
+          />
+          <Field
+            id="item-end"
+            label="Ends"
+            hint="Optional"
+            type="time"
+            value={f.endTime}
+            onChange={(e) => set("endTime", e.target.value)}
+          />
         </div>
       )}
 
       <ChoiceChips name="status" label="Status" options={STATUSES} value={f.status} onChange={(v) => set("status", v)} />
 
       <div className="grid grid-cols-[1fr_96px] gap-3">
-        <Field id="item-cost" label="Cost" hint="Optional" inputMode="decimal" value={f.cost} onChange={(e) => set("cost", e.target.value)} placeholder="0" />
-        <Field id="item-currency" label="Currency" value={f.currency} maxLength={3} onChange={(e) => set("currency", e.target.value.toUpperCase())} />
+        <Field
+          id="item-cost"
+          label="Cost"
+          hint="Optional"
+          inputMode="decimal"
+          value={f.cost}
+          onChange={(e) => set("cost", e.target.value)}
+          placeholder="0"
+        />
+        <Field
+          id="item-currency"
+          label="Currency"
+          value={f.currency}
+          maxLength={3}
+          onChange={(e) => set("currency", e.target.value.toUpperCase())}
+        />
       </div>
 
-      <TextArea id="item-notes" label="Notes" value={f.notes} maxLength={2000} onChange={(e) => set("notes", e.target.value)} placeholder="Book ahead, bring cash…" />
+      <TextArea
+        id="item-notes"
+        label="Notes"
+        value={f.notes}
+        maxLength={2000}
+        onChange={(e) => set("notes", e.target.value)}
+        placeholder="Book ahead, bring cash…"
+      />
 
       {error && (
         <p role="alert" className="text-caption font-bold text-plum">
@@ -169,15 +217,31 @@ function EditorForm({ onDone }: { onDone: () => void }) {
           <div className="flex flex-wrap gap-2">
             {canReorder && (
               <>
-                <Button type="button" variant="secondary" disabled={pending} onClick={() => run("moveItem", { itemId: item.id, direction: "earlier" }).then((ok) => ok && onDone())}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => run("moveItem", { itemId: item.id, direction: "earlier" }).then((ok) => ok && onDone())}
+                >
                   <ArrowUp width={18} height={18} /> Earlier
                 </Button>
-                <Button type="button" variant="secondary" disabled={pending} onClick={() => run("moveItem", { itemId: item.id, direction: "later" }).then((ok) => ok && onDone())}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => run("moveItem", { itemId: item.id, direction: "later" }).then((ok) => ok && onDone())}
+                >
                   <ArrowDown width={18} height={18} /> Later
                 </Button>
               </>
             )}
-            <Button type="button" variant="ghost" className="ml-auto" disabled={pending} onClick={() => run("deleteItem", { itemId: item.id }).then((ok) => ok && onDone())}>
+            <Button
+              type="button"
+              variant="ghost"
+              className="ml-auto"
+              disabled={pending}
+              onClick={() => run("deleteItem", { itemId: item.id }).then((ok) => ok && onDone())}
+            >
               Remove
             </Button>
           </div>

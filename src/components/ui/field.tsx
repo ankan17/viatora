@@ -17,7 +17,13 @@ export function Field({
       <label htmlFor={id} className="text-label text-ink">
         {label}
       </label>
-      <input id={id} className={inputClass} aria-invalid={error ? true : undefined} aria-describedby={hint || error ? `${id}-note` : undefined} {...props} />
+      <input
+        id={id}
+        className={inputClass}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={hint || error ? `${id}-note` : undefined}
+        {...props}
+      />
       {(error || hint) && (
         <p id={`${id}-note`} className={cn("text-caption", error ? "text-plum font-bold" : "text-muted")}>
           {error ?? hint}

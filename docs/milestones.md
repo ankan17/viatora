@@ -14,6 +14,7 @@
 - [ ] Hosted Supabase + Vercel deploy (needs go-ahead)
 
 Decisions made along the way:
+
 - Day dates are derived from `trips.start_date`, not stored per day, so days can't drift out of sequence.
 - The ideas backlog is `items` with no day, so "move idea to day 2" is one update and undo stays uniform.
 - `trip_members` with owner/editor/viewer roles exists now, so sharing later doesn't mean rewriting RLS. Only owners exist until invites ship.
@@ -33,6 +34,7 @@ Decisions made along the way:
 - [x] Visual tests: 86 screenshots of every screen and dialog (phone and desktop, light and dark), and CI on GitHub for all the suites
 
 Decisions made along the way:
+
 - Removing a day moves its items to ideas (and resets planned items to idea; booked stays booked) rather than deleting them.
 - Undo is not itself logged, so there is no redo yet.
 - Items point at days and bookings through (id, trip_id) keys, so they can't reference another trip's rows.
@@ -52,6 +54,7 @@ Decisions made along the way:
 - [ ] A real conversation with the model (needs `ANTHROPIC_API_KEY`): the prompt, the tool descriptions and effort level are untuned until then
 
 Decisions made along the way:
+
 - The model names days by number and items by id. Day numbers are looked up at the moment each tool runs, so a turn that adds or removes days keeps working.
 - Earlier turns are sent as words only. Tool calls are not replayed: the snapshot already shows what they did, and it also shows edits made by hand.
 - Edits apply at once, without asking first. The card and its Undo are the way back.
@@ -64,9 +67,11 @@ Decisions made along the way:
 - Only people who can edit a trip can chat on it. The daily cap is a cost guard, not a plan limit; plans belong with launch prep.
 
 Known gaps, found in review and left for later:
+
 - Undoing a reply is refused ("Something else changed since") when a later change touched the same row. The trip profile lives on the trip's row, so two replies that each save a preference must be undone newest first.
 - One turn per trip at a time is enforced only by the chat box. Two tabs can run two turns at once.
 - On serverless hosting, check that Stop cancels the function, and that a turn cut off by the time limit still leaves a card for the edits it made.
+
 ## 4. Lookups — built, not yet run against the real services or model
 
 - [x] Place search (Photon over OpenStreetMap: names, kinds, locations). Results are stored as shared place rows and an item can be pinned to one (`place_id` on add_item / update_item)
@@ -78,11 +83,14 @@ Known gaps, found in review and left for later:
 - [ ] A real run: the live services and the model have not been exercised together
 
 Decisions made along the way:
+
 - Place data is OpenStreetMap, so there are no ratings, opening hours or prices, and the prompt says so. Google Places needs a key and a billing decision; the places table already stores a Google place by ID only.
 - Open-Meteo's free tier is for non-commercial use. A launch that charges (milestone 6) needs its paid plan or another source. Photon's public instance is fair-use only; use your own instance before launch.
 - `ensure_place` is now server-only. Place rows are shared across trips, so a person must not be able to set a place's name or location.
 - Directions, stays and flights, rail times and web search are not built; travel time is an estimate and the prompt says so.
 - Lookups never end a turn: a failed or slow service comes back to the model as text. At most 8 lookups per reply, and place names from OpenStreetMap are tidied and cut before they reach the model or the database.
 - Overlaps are checked only between items that have start times, and only when the earlier one has an end time (or both start together). Closed days and transfers need opening hours and real routes.
+
 ## 5. Lists
+
 ## 6. Launch prep

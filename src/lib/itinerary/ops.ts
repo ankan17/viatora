@@ -276,7 +276,8 @@ const run: { [N in OpName]: (ctx: EditContext, input: OpOutput<N>) => Promise<{ 
     if (JSON.stringify(next.data) === JSON.stringify(before)) throw new EditError("The trip profile already says that.");
 
     const onlyPreferences = Object.keys(input).every((k) => k === "addPreferences" || k === "removePreferences");
-    const summary = onlyPreferences && added.length === 1 && dropped.length === 0 ? `Noted: ${quote(added[0])}` : "Updated the trip profile";
+    const summary =
+      onlyPreferences && added.length === 1 && dropped.length === 0 ? `Noted: ${quote(added[0])}` : "Updated the trip profile";
     const w = await ctx.writer(summary);
     check(await w.from("trips").update({ profile: next.data }).eq("id", ctx.tripId));
     return { summary };
@@ -316,7 +317,8 @@ export async function applyEdit<N extends OpName>(ctx: EditContext, op: N, input
     if (e instanceof EditError) return { ok: false, error: e.message };
     const code = (e as { code?: string }).code;
     if (code === "42501") return { ok: false, error: "You can view this trip but not edit it." };
-    if (code === "23503") return { ok: false, error: "That refers to something that doesn't exist. A place_id must come from search_places." };
+    if (code === "23503")
+      return { ok: false, error: "That refers to something that doesn't exist. A place_id must come from search_places." };
     console.error(`edit ${op} failed`, e);
     return { ok: false, error: "That didn't save. Try again." };
   }

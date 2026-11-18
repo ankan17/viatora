@@ -31,7 +31,13 @@ export function toParts(text: string, edits: ChatEdit[] = []): MessagePart[] {
   return parts;
 }
 
-export type MessageRow = { id: string; role: "user" | "assistant"; parts: Json; change_batch_id: string | null; batch: { undone_at: string | null } | null };
+export type MessageRow = {
+  id: string;
+  role: "user" | "assistant";
+  parts: Json;
+  change_batch_id: string | null;
+  batch: { undone_at: string | null } | null;
+};
 
 export function fromRow(row: MessageRow): ChatMessage {
   const parts = z.array(partSchema).safeParse(row.parts);
@@ -52,7 +58,8 @@ export function fromRow(row: MessageRow): ChatMessage {
  * traveller, as a conversation must.
  */
 export function toHistory(messages: ChatMessage[]): Anthropic.Beta.BetaMessageParam[] {
-  const clip = (t: string) => (t.length > HISTORY_MESSAGE_LENGTH ? `${t.slice(0, HISTORY_MESSAGE_LENGTH)}\n[…the rest of this message was left out]` : t);
+  const clip = (t: string) =>
+    t.length > HISTORY_MESSAGE_LENGTH ? `${t.slice(0, HISTORY_MESSAGE_LENGTH)}\n[…the rest of this message was left out]` : t;
   const turns = messages.filter((m) => m.text.trim()).map((m) => ({ role: m.role, content: clip(m.text) }));
   while (turns[0]?.role === "assistant") turns.shift();
   return turns;
@@ -75,4 +82,5 @@ export function mergeMessages(server: ChatMessage[], local: ChatMessage[], added
 export const isUnsaved = (m: ChatMessage) => m.id.startsWith("local-");
 
 /** Adds a message unless it is already there. */
-export const appendMessage = (list: ChatMessage[], message: ChatMessage) => (list.some((m) => m.id === message.id) ? list : [...list, message]);
+export const appendMessage = (list: ChatMessage[], message: ChatMessage) =>
+  list.some((m) => m.id === message.id) ? list : [...list, message];

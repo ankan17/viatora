@@ -22,7 +22,6 @@ export async function latestSignInEmail(email: string, timeoutMs = 15_000): Prom
   throw new Error(`No sign-in email for ${email}`);
 }
 
-
 /** Signs in with the emailed code. The account is created if `email` is new. */
 export async function signIn(page: Page, email: string) {
   await page.goto("/sign-in");

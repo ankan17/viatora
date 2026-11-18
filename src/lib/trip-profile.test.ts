@@ -19,7 +19,9 @@ describe("readTripProfile", () => {
   });
 
   it("drops only the field that is wrong, so the next save doesn't wipe the rest", () => {
-    expect(readTripProfile({ pace: "frantic", dietary: ["vegetarian"], preferences: ["No early starts"], travellers: { adults: 0 } })).toEqual({
+    expect(
+      readTripProfile({ pace: "frantic", dietary: ["vegetarian"], preferences: ["No early starts"], travellers: { adults: 0 } }),
+    ).toEqual({
       interests: [],
       dietary: ["vegetarian"],
       preferences: ["No early starts"],

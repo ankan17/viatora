@@ -11,13 +11,21 @@ const SELECT = "id, role, parts, change_batch_id, batch:change_batches(undone_at
 
 /** The latest messages of a trip's chat, oldest first. */
 export async function loadMessages(supabase: ServerClient, tripId: string, limit = 60): Promise<ChatMessage[]> {
-  const { data, error } = await supabase.from("messages").select(SELECT).eq("trip_id", tripId).order("created_at", { ascending: false }).limit(limit);
+  const { data, error } = await supabase
+    .from("messages")
+    .select(SELECT)
+    .eq("trip_id", tripId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
   if (error) throw error;
   return data.reverse().map(fromRow);
 }
 
 /** Stores the traveller's message, as them. Row level security decides whether they may. */
-export async function saveUserMessage(supabase: ServerClient, row: { tripId: string; authorId: string; text: string }): Promise<ChatMessage> {
+export async function saveUserMessage(
+  supabase: ServerClient,
+  row: { tripId: string; authorId: string; text: string },
+): Promise<ChatMessage> {
   const { data, error } = await supabase
     .from("messages")
     .insert({ trip_id: row.tripId, author_id: row.authorId, role: "user", parts: toParts(row.text) })
@@ -32,10 +40,22 @@ export async function saveUserMessage(supabase: ServerClient, row: { tripId: str
  * uses the secret key. Only call it for a trip the signed-in user was just
  * allowed to chat on.
  */
-export async function saveReply(row: { tripId: string; authorId: string; text: string; edits: ChatEdit[]; batchId: string | null }): Promise<ChatMessage> {
+export async function saveReply(row: {
+  tripId: string;
+  authorId: string;
+  text: string;
+  edits: ChatEdit[];
+  batchId: string | null;
+}): Promise<ChatMessage> {
   const { data, error } = await createAdminClient()
     .from("messages")
-    .insert({ trip_id: row.tripId, author_id: row.authorId, role: "assistant", parts: toParts(row.text, row.edits), change_batch_id: row.batchId })
+    .insert({
+      trip_id: row.tripId,
+      author_id: row.authorId,
+      role: "assistant",
+      parts: toParts(row.text, row.edits),
+      change_batch_id: row.batchId,
+    })
     .select(SELECT)
     .single();
   if (error) throw error;
@@ -45,7 +65,12 @@ export async function saveReply(row: { tripId: string; authorId: string; text: s
 /** How many messages this person has sent in the last 24 hours. */
 export async function countRecentMessages(supabase: ServerClient, userId: string): Promise<number> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count, error } = await supabase.from("messages").select("id", { count: "exact", head: true }).eq("author_id", userId).eq("role", "user").gte("created_at", since);
+  const { count, error } = await supabase
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("author_id", userId)
+    .eq("role", "user")
+    .gte("created_at", since);
   if (error) throw error;
   return count ?? 0;
 }

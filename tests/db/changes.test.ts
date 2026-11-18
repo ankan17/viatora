@@ -11,7 +11,11 @@ async function loadDays() {
   return data!;
 }
 async function batches() {
-  const { data } = await user.client.from("change_batches").select("id, actor, summary, undone_at").eq("trip_id", tripId).order("created_at");
+  const { data } = await user.client
+    .from("change_batches")
+    .select("id, actor, summary, undone_at")
+    .eq("trip_id", tripId)
+    .order("created_at");
   return data!;
 }
 async function undo(batchId: string, client = user.client) {
@@ -81,8 +85,16 @@ describe("logging", () => {
 
 describe("undo", () => {
   it("reverts an insert, an update and a delete in one batch", async () => {
-    const { data: keep } = await user.client.from("items").insert({ trip_id: tripId, day_id: days[0].id, title: "Keep", slot: "morning" }).select().single();
-    const { data: gone } = await user.client.from("items").insert({ trip_id: tripId, day_id: days[0].id, title: "Gone", notes: "remember" }).select().single();
+    const { data: keep } = await user.client
+      .from("items")
+      .insert({ trip_id: tripId, day_id: days[0].id, title: "Keep", slot: "morning" })
+      .select()
+      .single();
+    const { data: gone } = await user.client
+      .from("items")
+      .insert({ trip_id: tripId, day_id: days[0].id, title: "Gone", notes: "remember" })
+      .select()
+      .single();
 
     const batch = { id: randomUUID(), summary: "Shuffled day 1" };
     const c = await inBatch(user.client, batch);

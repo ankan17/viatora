@@ -34,7 +34,11 @@ function Screen({ messages }: { messages: ChatMessage[] }) {
     <div className="flex h-dvh flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_440px]">
       <div className="flex min-h-0 flex-1 flex-col">
         <header className="flex items-center gap-1 border-b border-hairline bg-raised px-1 pb-1 pt-[max(env(safe-area-inset-top),4px)]">
-          <Link href="/trips" aria-label="Your trips" className="flex size-11 shrink-0 items-center justify-center rounded-sm hover:bg-blush">
+          <Link
+            href="/trips"
+            aria-label="Your trips"
+            className="flex size-11 shrink-0 items-center justify-center rounded-sm hover:bg-blush"
+          >
             <ChevronLeft />
           </Link>
           {/* Pinned bar: trip and day in scope. On phone it opens the itinerary sheet. */}
@@ -52,7 +56,12 @@ function Screen({ messages }: { messages: ChatMessage[] }) {
             <ChevronUp className="shrink-0 text-plum lg:hidden" />
           </button>
           {itinerary.canEdit && (
-            <button type="button" onClick={() => setDetails(true)} aria-label="Trip details" className="hidden size-11 shrink-0 items-center justify-center rounded-sm hover:bg-blush lg:flex">
+            <button
+              type="button"
+              onClick={() => setDetails(true)}
+              aria-label="Trip details"
+              className="hidden size-11 shrink-0 items-center justify-center rounded-sm hover:bg-blush lg:flex"
+            >
               <Settings />
             </button>
           )}

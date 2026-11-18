@@ -1,0 +1,10 @@
+.next
+node_modules
+pnpm-lock.yaml
+test-results
+playwright-report
+next-env.d.ts
+src/lib/database.types.ts
+tests/visual/__screenshots__
+supabase/.temp
+*.tsbuildinfo

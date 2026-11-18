@@ -34,11 +34,22 @@ describe("stored messages", () => {
   });
 
   it("show nothing for parts they don't understand, rather than failing the page", () => {
-    expect(fromRow({ id: "m", role: "user", parts: [{ type: "image" }], change_batch_id: null, batch: null })).toMatchObject({ text: "", edits: [] });
+    expect(fromRow({ id: "m", role: "user", parts: [{ type: "image" }], change_batch_id: null, batch: null })).toMatchObject({
+      text: "",
+      edits: [],
+    });
   });
 });
 
-const message = (o: Partial<ChatMessage>): ChatMessage => ({ id: "m", role: "user", text: "", edits: [], batchId: null, undone: false, ...o });
+const message = (o: Partial<ChatMessage>): ChatMessage => ({
+  id: "m",
+  role: "user",
+  text: "",
+  edits: [],
+  batchId: null,
+  undone: false,
+  ...o,
+});
 
 describe("history sent to the model", () => {
   it("is words only, and skips replies that were edits with no text", () => {
@@ -55,7 +66,9 @@ describe("history sent to the model", () => {
   });
 
   it("starts with the traveller, even when the window opens on a reply", () => {
-    expect(toHistory([message({ role: "assistant", text: "Earlier reply" }), message({ text: "Next" })])).toEqual([{ role: "user", content: "Next" }]);
+    expect(toHistory([message({ role: "assistant", text: "Earlier reply" }), message({ text: "Next" })])).toEqual([
+      { role: "user", content: "Next" },
+    ]);
   });
 
   it("cuts a very long message and says so", () => {
@@ -67,7 +80,8 @@ describe("history sent to the model", () => {
 
 describe("joining the stored list with this session's messages", () => {
   const ids = (list: ChatMessage[]) => list.map((m) => m.id);
-  const stored = (n: number, from = 1) => Array.from({ length: n }, (_, i) => message({ id: `m${from + i}`, role: (from + i) % 2 ? "user" : "assistant" }));
+  const stored = (n: number, from = 1) =>
+    Array.from({ length: n }, (_, i) => message({ id: `m${from + i}`, role: (from + i) % 2 ? "user" : "assistant" }));
 
   it("keeps messages that arrived over the stream until the server has them", () => {
     const local = [...stored(2), message({ id: "u3" }), message({ id: "a4", role: "assistant" })];
@@ -84,7 +98,10 @@ describe("joining the stored list with this session's messages", () => {
     // A refresh that only has the traveller's message so far.
     expect(ids(mergeMessages([message({ id: "u1" })], local, new Set(["u1"])))).toEqual(["u1", "local-1"]);
     // The stored reply takes its place.
-    expect(ids(mergeMessages([message({ id: "u1" }), message({ id: "a2", role: "assistant" })], local, new Set(["u1"])))).toEqual(["u1", "a2"]);
+    expect(ids(mergeMessages([message({ id: "u1" }), message({ id: "a2", role: "assistant" })], local, new Set(["u1"])))).toEqual([
+      "u1",
+      "a2",
+    ]);
   });
 
   it("never adds the same message twice", () => {

@@ -118,7 +118,11 @@ describe("items", () => {
   });
 
   it("without a day sit in the ideas backlog", async () => {
-    const { data, error } = await owner.client.from("items").insert({ trip_id: tripId, title: "Day trip to Sintra" }).select("day_id, status").single();
+    const { data, error } = await owner.client
+      .from("items")
+      .insert({ trip_id: tripId, title: "Day trip to Sintra" })
+      .select("day_id, status")
+      .single();
     expect(error).toBeNull();
     expect(data).toEqual({ day_id: null, status: "idea" });
   });
@@ -137,12 +141,24 @@ describe("change_log", () => {
 describe("places", () => {
   it("store only the ID for Google, and never overwrite an existing place", async () => {
     const gid = `g-${randomUUID()}`;
-    const { data: id1 } = await admin.rpc("ensure_place", { p_provider: "google", p_provider_place_id: gid, p_name: "Leak", p_lat: 1, p_lng: 2 });
+    const { data: id1 } = await admin.rpc("ensure_place", {
+      p_provider: "google",
+      p_provider_place_id: gid,
+      p_name: "Leak",
+      p_lat: 1,
+      p_lng: 2,
+    });
     const { data: row } = await owner.client.from("places").select("name, lat, lng").eq("id", id1!).single();
     expect(row).toEqual({ name: null, lat: null, lng: null });
 
     const oid = `N${Date.now()}`;
-    const { data: a } = await admin.rpc("ensure_place", { p_provider: "osm", p_provider_place_id: oid, p_name: "Real name", p_lat: 38.7, p_lng: -9.1 });
+    const { data: a } = await admin.rpc("ensure_place", {
+      p_provider: "osm",
+      p_provider_place_id: oid,
+      p_name: "Real name",
+      p_lat: 38.7,
+      p_lng: -9.1,
+    });
     const { data: b } = await admin.rpc("ensure_place", { p_provider: "osm", p_provider_place_id: oid, p_name: "Vandalised" });
     expect(b).toBe(a);
     const { data: kept } = await owner.client.from("places").select("name").eq("id", a!).single();
@@ -153,14 +169,26 @@ describe("places", () => {
     const { error: insert } = await owner.client.from("places").insert({ provider: "custom", provider_place_id: randomUUID(), name: "x" });
     expect(insert?.code).toBe("42501");
     // A place's name and location are shared across trips, so a person can't set them.
-    const { error: rpc } = await owner.client.rpc("ensure_place", { p_provider: "osm", p_provider_place_id: `N${randomUUID()}`, p_name: "Fake", p_lat: 1, p_lng: 2 });
+    const { error: rpc } = await owner.client.rpc("ensure_place", {
+      p_provider: "osm",
+      p_provider_place_id: `N${randomUUID()}`,
+      p_name: "Fake",
+      p_lat: 1,
+      p_lng: 2,
+    });
     expect(rpc).not.toBeNull();
     const { error: anonRpc } = await anon().rpc("ensure_place", { p_provider: "osm", p_provider_place_id: "N1", p_name: "Fake" });
     expect(anonRpc).not.toBeNull();
   });
 
   it("can be pinned to an item by an editor", async () => {
-    const { data: place } = await admin.rpc("ensure_place", { p_provider: "osm", p_provider_place_id: `N${randomUUID()}`, p_name: "Shrine", p_lat: 35, p_lng: 135 });
+    const { data: place } = await admin.rpc("ensure_place", {
+      p_provider: "osm",
+      p_provider_place_id: `N${randomUUID()}`,
+      p_name: "Shrine",
+      p_lat: 35,
+      p_lng: 135,
+    });
     const { error } = await owner.client.from("items").insert({ trip_id: tripId, day_id: dayId, title: "Visit", place_id: place });
     expect(error).toBeNull();
   });
@@ -169,7 +197,11 @@ describe("places", () => {
 describe("messages", () => {
   const text = (t: string) => [{ type: "text", text: t }];
   const post = (client: Client, row: Record<string, unknown> = {}) =>
-    client.from("messages").insert({ trip_id: chatTrip, role: "user", parts: text("Add ramen"), ...row }).select("id, author_id").single();
+    client
+      .from("messages")
+      .insert({ trip_id: chatTrip, role: "user", parts: text("Add ramen"), ...row })
+      .select("id, author_id")
+      .single();
   let chatTrip: string;
 
   beforeAll(async () => {
@@ -192,7 +224,9 @@ describe("messages", () => {
     const batch = randomUUID();
     await (await inBatch(owner.client, { id: batch, summary: "Renamed" })).from("trips").update({ name: "Renamed" }).eq("id", chatTrip);
     expect((await post(owner.client, { change_batch_id: batch })).error?.code).toBe("42501");
-    const { error } = await admin.from("messages").insert({ trip_id: chatTrip, author_id: owner.id, role: "assistant", parts: text("Renamed it."), change_batch_id: batch });
+    const { error } = await admin
+      .from("messages")
+      .insert({ trip_id: chatTrip, author_id: owner.id, role: "assistant", parts: text("Renamed it."), change_batch_id: batch });
     expect(error).toBeNull();
   });
 
@@ -224,7 +258,9 @@ describe("messages", () => {
   });
 
   it("can only point at a change batch that exists", async () => {
-    const { error } = await admin.from("messages").insert({ trip_id: chatTrip, author_id: owner.id, role: "assistant", parts: text("Done."), change_batch_id: randomUUID() });
+    const { error } = await admin
+      .from("messages")
+      .insert({ trip_id: chatTrip, author_id: owner.id, role: "assistant", parts: text("Done."), change_batch_id: randomUUID() });
     expect(error?.code).toBe("23503");
   });
 });

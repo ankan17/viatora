@@ -15,7 +15,15 @@ export type SheetState = "closed" | "peek" | "full";
  * Phone only. "peek" slides the selected day up over the chat; "full" is the
  * whole itinerary with tabs. Drag the handle to move between them.
  */
-export function ItinerarySheet({ state, setState, onTripDetails }: { state: SheetState; setState: (s: SheetState) => void; onTripDetails: () => void }) {
+export function ItinerarySheet({
+  state,
+  setState,
+  onTripDetails,
+}: {
+  state: SheetState;
+  setState: (s: SheetState) => void;
+  onTripDetails: () => void;
+}) {
   const { itinerary, day } = useTrip();
   const panel = useRef<HTMLDivElement>(null);
   const drag = useRef<{ y: number; id: number } | null>(null);
@@ -85,7 +93,12 @@ export function ItinerarySheet({ state, setState, onTripDetails }: { state: Shee
         {state === "full" ? (
           <>
             <div className="flex shrink-0 items-center gap-1 bg-raised px-1 pb-1 pt-[max(env(safe-area-inset-top),8px)]">
-              <button type="button" onClick={() => setState("closed")} aria-label="Back to chat" className="flex size-11 items-center justify-center rounded-sm hover:bg-blush">
+              <button
+                type="button"
+                onClick={() => setState("closed")}
+                aria-label="Back to chat"
+                className="flex size-11 items-center justify-center rounded-sm hover:bg-blush"
+              >
                 <ChevronLeft />
               </button>
               <div className="flex min-w-0 flex-1 flex-col">
@@ -93,7 +106,12 @@ export function ItinerarySheet({ state, setState, onTripDetails }: { state: Shee
                 <span className="truncate text-caption text-muted">{trip.destination ?? `${itinerary.days.length} days`}</span>
               </div>
               {itinerary.canEdit && (
-                <button type="button" onClick={onTripDetails} aria-label="Trip details" className="flex size-11 items-center justify-center rounded-sm hover:bg-blush">
+                <button
+                  type="button"
+                  onClick={onTripDetails}
+                  aria-label="Trip details"
+                  className="flex size-11 items-center justify-center rounded-sm hover:bg-blush"
+                >
                   <Settings />
                 </button>
               )}
@@ -112,12 +130,23 @@ export function ItinerarySheet({ state, setState, onTripDetails }: { state: Shee
           </>
         ) : (
           <>
-            <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} className="flex shrink-0 touch-none justify-center pb-1 pt-2">
+            <div
+              onPointerDown={onDown}
+              onPointerMove={onMove}
+              onPointerUp={onUp}
+              onPointerCancel={onUp}
+              className="flex shrink-0 touch-none justify-center pb-1 pt-2"
+            >
               <span className="h-1 w-9 rounded-full bg-outline" aria-hidden />
             </div>
             <div className="flex shrink-0 items-center justify-between gap-2 pl-4 pr-1">
               <h2 className="truncate text-title">{day ? dayTitle(day, trip.start_date) : trip.name}</h2>
-              <button type="button" onClick={() => setState("closed")} aria-label="Back to chat" className="flex size-11 items-center justify-center rounded-sm hover:bg-blush">
+              <button
+                type="button"
+                onClick={() => setState("closed")}
+                aria-label="Back to chat"
+                className="flex size-11 items-center justify-center rounded-sm hover:bg-blush"
+              >
                 <Close />
               </button>
             </div>
@@ -136,4 +165,3 @@ export function ItinerarySheet({ state, setState, onTripDetails }: { state: Shee
     </div>
   );
 }
-
