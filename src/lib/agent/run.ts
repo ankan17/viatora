@@ -1,6 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { applyEdit, editContext } from "@/lib/itinerary/ops";
+import { editContext } from "@/lib/itinerary/ops";
 import { loadItinerary } from "@/lib/itinerary/snapshot";
 import type { ServerClient } from "@/lib/supabase/server";
 import { turnContext } from "./context";
@@ -8,8 +8,9 @@ import type { TurnEvent } from "./events";
 import { toHistory, type ChatEdit } from "./messages";
 import { DAILY_MESSAGE_LIMIT, EFFORT, HISTORY_LIMIT, MAX_STEPS, MAX_TOKENS, MODEL, SYSTEM_PROMPT } from "./model";
 import { countRecentMessages, loadMessages, loadRecentChanges, saveReply, saveUserMessage } from "./store";
-import { newLookupSession, runLookup } from "./lookup-tools";
-import { isLookupName, isToolName, ToolInputError, toOp, tools } from "./tools";
+import { executeTool } from "./execute";
+import { newLookupSession } from "./lookup-tools";
+import { tools } from "./tools";
 
 let client: Anthropic | undefined;
 /** Created on first use, so a missing key fails a chat turn rather than the build. */
@@ -82,41 +83,12 @@ export async function runTurn({ supabase, userId, tripId, text, dayId, signal, e
   };
 
   async function runTool(block: ToolUse): Promise<Anthropic.Beta.BetaToolResultBlockParam> {
-    const fail = (message: string) => ({ type: "tool_result" as const, tool_use_id: block.id, is_error: true, content: message });
-    if (!isToolName(block.name) && !isLookupName(block.name)) return fail(`There is no tool called ${block.name}.`);
-    try {
-      if (isLookupName(block.name)) {
-        const content = await runLookup(block.name, block.input, { supabase, tripId, session: lookups });
-        return { type: "tool_result", tool_use_id: block.id, content };
-      }
-      // Read fresh each time: an earlier edit in this turn may have renumbered the days.
-      const [days, trip] = await Promise.all([
-        supabase.from("days").select("id, number").eq("trip_id", tripId).order("number"),
-        supabase.from("trips").select("currency").eq("id", tripId).single(),
-      ]);
-      if (days.error || trip.error) throw days.error ?? trip.error;
-      const { op, input } = toOp(block.name, block.input, {
-        dayIds: new Map(days.data.map((d) => [d.number, d.id])),
-        currency: trip.data.currency,
-      });
-      const result = await applyEdit(ctx, op, input);
-      if (!result.ok) return fail(result.error);
-
-      edits.push({ summary: result.summary });
-      emit({ type: "edit", summary: result.summary, itemId: result.id });
-      const extra =
-        op === "addItem"
-          ? ` The new item's id is ${result.id}.`
-          : op === "addBooking"
-            ? ` The new booking's id is ${result.id}.`
-            : op === "addDay" || op === "removeDay" || op === "moveDay"
-              ? " Days have been renumbered; use the new numbers from here on."
-              : "";
-      return { type: "tool_result", tool_use_id: block.id, content: `${result.summary}.${extra}` };
-    } catch (e) {
-      if (e instanceof ToolInputError) return fail(e.message);
-      throw e;
+    const out = await executeTool(block.name, block.input, { supabase, tripId, ctx, lookups });
+    if (out.edit) {
+      edits.push({ summary: out.edit.summary });
+      emit({ type: "edit", summary: out.edit.summary, itemId: out.edit.itemId });
     }
+    return { type: "tool_result", tool_use_id: block.id, content: out.content, ...(out.isError && { is_error: true }) };
   }
 
   let failure: string | null = null;

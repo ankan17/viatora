@@ -15,6 +15,7 @@
     "test:db": "vitest run --project db",
     "test:e2e": "playwright test",
     "test:visual": "node scripts/visual.mjs",
+    "eval": "node scripts/eval.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm test:db",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
@@ -32,6 +33,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@google/genai": "^3.4.0",
     "@playwright/test": "^1.65.1",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^20",
@@ -39,6 +41,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "openai": "^7.57.0",
     "prettier": "^3.10.1",
     "supabase": "2.116.0",
     "tailwindcss": "4.3.3",
